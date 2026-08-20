@@ -1,0 +1,23 @@
+# Build products and generated assets
+/build/
+/shared/generated/
+/programs/*/generated/
+
+# Temporary analysis files
+/tmp/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Emulator/runtime leftovers
+*.log
+*.trace
+*.state
+
+# macOS and editors
+.DS_Store
+.idea/
+.vscode/
+*~
+*.swp

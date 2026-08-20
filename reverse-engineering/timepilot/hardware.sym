@@ -1,0 +1,28 @@
+; Z80 vectors
+RESET_VECTOR: equ 0x0000
+NMI_VECTOR: equ 0x0066
+
+; Video and work RAM
+COLOR_RAM: equ 0xa000
+VIDEO_RAM: equ 0xa400
+WORK_RAM: equ 0xa800
+SPRITE_RAM_POSITION_CODE: equ 0xb000
+SPRITE_RAM_ATTRIBUTE_Y: equ 0xb400
+
+; Read/write meaning depends on bus direction.
+SCANLINE_READ_SOUND_COMMAND_WRITE: equ 0xc000
+DSW2_READ_WATCHDOG_WRITE: equ 0xc200
+INPUT_SYSTEM: equ 0xc300
+LATCH_NMI_ENABLE: equ 0xc300
+LATCH_FLIP_SCREEN: equ 0xc302
+LATCH_SOUND_IRQ: equ 0xc304
+LATCH_VIDEO_ENABLE: equ 0xc308
+LATCH_COIN_COUNTER_1: equ 0xc30a
+LATCH_COIN_COUNTER_2: equ 0xc30c
+INPUT_PLAYER_1: equ 0xc320
+INPUT_PLAYER_2: equ 0xc340
+DSW1_READ: equ 0xc360
+
+; First confirmed routines (names remain deliberately behavior-oriented)
+SPRITE_RASTER_REWRITE_IF_DUE: equ 0x0f97
+SPRITE_RASTER_REWRITE_WAIT: equ 0x1098
