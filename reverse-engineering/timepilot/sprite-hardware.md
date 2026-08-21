@@ -17,6 +17,12 @@ einen geraden Offset `o` gilt:
 Die Grafik ist 16×16 Pixel groß, Pixelwert 0 ist transparent. Ein logisches
 Sprite lässt sich daher so ausdrücken:
 
+Es existiert kein Größenfeld und kein Code-abhängiges Format: Alle 256 Codes
+aus `tm4`/`tm5` haben dieselbe feste Größe. Größere logische Spielobjekte
+müssen aus mehreren Hardware-Slots zusammengesetzt werden. In einer lückenlos
+gezeichneten Sprite-Galerie können außerdem zwei unabhängige, benachbarte
+Codes fälschlich wie eine einzige größere Grafik wirken.
+
 ```c
 struct ArcadeSprite {
     uint8_t x;

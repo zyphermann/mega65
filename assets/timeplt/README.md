@@ -47,6 +47,13 @@ MAME beschreibt die ungewöhnliche Bit-/Nibble-Anordnung in `charlayout` und
 nachgebildet werden; ein lineares Lesen der Bits liefert keine korrekt
 angeordneten Bilder.
 
+`tools/extract_timepilot_sprites.py` dekodiert `tm4` und `tm5` zu allen 256
+Sprites, dreht sie für einen normalen Landscape-Bildschirm um 90 Grad nach
+rechts und erzeugt unter `shared/generated/` eine 4-bpp-Binärdatei, einen
+256×256-Pixel-Übersichts-PNG und einen Header mit den Formatkonstanten. Die
+Vorschau verwendet absichtlich nur feste Fallback-Farben für Pixelwerte 0–3;
+die Sprite-PROM-Farbzuordnung wird dabei noch nicht angewendet.
+
 Ein Tile oder Sprite wählt zusätzlich eine Farbgruppe. Die Kombination aus
 Farbgruppe und 2-Bit-Pixel ergibt einen Index in `e12` beziehungsweise `e9`.
 Erst diese Lookup-Tabelle verweist auf eine der 32 echten Farben aus `b4` und

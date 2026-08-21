@@ -55,6 +55,53 @@ Das vollständige Registerlayout und die Shadow-RAM-Zuordnung stehen in
 [`sprite-hardware.md`](sprite-hardware.md); der vorläufige Frameablauf in
 [`frame-flow.md`](frame-flow.md).
 
+## Bestätigte HUD-Tilecodes
+
+Die BCD-Ausgaberoutine `$0d81-$0d9f` indiziert für jedes Nibble die zehn Bytes
+bei `$0dcc`. Damit ist die Ziffernfolge eindeutig:
+
+```text
+0=$13 1=$96 2=$9b 3=$cd 4=$f3 5=$7f 6=$65 7=$02 8=$17 9=$5d
+```
+
+Die Texttabelle ab `$0c50` verweist auf Datensätze aus Zieladresse,
+Farbattribut und einer mit `$b9` abgeschlossenen Tilecodefolge. Datensatz 5
+schreibt an `$a660` mit Farbattribut `$14` die Zeichenfolge `HI-SCORE`:
+
+```text
+H=$c4 I=$fd -=$10 S=$ed C=$77 O=$68 R=$d7 E=$34
+```
+
+`tools/extract_timepilot_font.py` extrahiert diese Glyphen aus `tm6`, dreht sie
+aus der Portrait-ROM-Orientierung und schreibt sie als MEGA65-4-bpp-Daten in
+den generierten HUD-Header.
+
+## Bestätigte Spieler-Spritecodes
+
+Die visuelle Prüfung mit `sprite_browser_demo` hat zwei Flugzeugserien in
+`tm4`/`tm5` ergeben:
+
+```text
+Spieler: 232 = oben, 240 = links, 247 = fast unten
+Gegner:   40 = oben,              47 = fast unten
+```
+
+Der Sourcecode bestätigt und präzisiert die Zuordnung:
+
+- `$20af-$20cd` quantisiert die Spieler-Richtung aus `$a802` auf 32 Schritte.
+  Die 32 Codebytes ab `$20ce` werden direkt nach `$aa11`, dem Codebyte des
+  ersten Shadow-Sprites, geschrieben. Die parallele Tabelle ab `$20ee` liefert
+  Farbgruppe und Flipbits für `$aa40`. Aus den 16 Codes `$e8-$f7` entstehen
+  so durch Spiegelung alle 32 Richtungen.
+- `$2afc-$2b17` quantisiert die Richtung `IX+2` einer variablen Objektstruktur
+  auf 16 Schritte. Die Tabelle ab `$2b18` schreibt den Code nach `IY+1` und
+  die parallele Attributtabelle ab `$2b28` nach `IY+$30`. Der Aufrufer bei
+  `$29ce` gehört zu einem der Gegner-Objekthandler, nicht zum Spielerpfad.
+  Die acht Codes `$28-$2f` sind daher eine gegnerische Flugzeugserie.
+
+Die vollständigen, bytegenauen Tabellen und symbolischen Namen stehen in
+`shared/time_pilot_sprite_codes.h`.
+
 ## Noch nicht als Code vertrauenswürdig
 
 Das lineare Listing disassembliert auch Tabellen. Automatisch erzeugte Labels

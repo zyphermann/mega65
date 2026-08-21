@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+"""Decode Time Pilot's tm6 character ROM using MAME's charlayout."""
+
+import argparse
+import hashlib
+import struct
+import zlib
+from pathlib import Path
+
+
+EXPECTED_TM6_SHA1 = "07221875e3f81d9def67c57a7ccd82d52ce65e01"
+EXPECTED_B4_SHA1 = "f62e279e21fce171231d3139be7adabe1f4b8c2e"
+EXPECTED_B5_SHA1 = "9ad275365eba4869f94749f39ff8705d92056a10"
+EXPECTED_E12_SHA1 = "151bd2dff4e4ef76d6438c1ab2cae71f987b9dad"
+TILE_COUNT = 512
+TILE_WIDTH = 8
+TILE_HEIGHT = 8
+SOURCE_BYTES_PER_TILE = 16
+OUTPUT_BYTES_PER_TILE = 32  # MEGA65 4-bpp: two pixels per byte.
+DIGIT_TILE_CODES = (0x13, 0x96, 0x9B, 0xCD, 0xF3, 0x7F, 0x65, 0x02, 0x17, 0x5D)
+HI_SCORE_TILE_CODES = (0xC4, 0xFD, 0x10, 0xED, 0x77, 0x68, 0xD7, 0x34)
+
+
+def decode_tile(rom, tile_index):
+    """Implement MAME charlayout: planes {4,0}, split 4+4 X pixels."""
+    base = tile_index * SOURCE_BYTES_PER_TILE
+    pixels = []
+    for y in range(TILE_HEIGHT):
+        for half in range(2):
+            value = rom[base + half * 8 + y]
+            for x in range(4):
+                # MAME numbers bit offsets from the byte's MSB. Plane offset 4
+                # contributes colour bit 0; plane offset 0 contributes bit 1.
+                plane0 = (value >> (3 - x)) & 1
+                plane1 = (value >> (7 - x)) & 1
+                pixels.append(plane0 | (plane1 << 1))
+    return pixels
+
+
+def pack_mega65_4bpp(pixels):
+    return bytes((pixels[i] << 4) | pixels[i + 1]
+                 for i in range(0, len(pixels), 2))
+
+
+def rotate_upright(pixels):
+    """Rotate raw portrait-monitor ROM art into readable landscape form."""
+    return [pixels[(7 - x) * TILE_WIDTH + y]
+            for y in range(TILE_HEIGHT) for x in range(TILE_WIDTH)]
+
+
+def png_chunk(kind, payload):
+    return (struct.pack(">I", len(payload)) + kind + payload +
+            struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF))
+
+
+def write_tilesheet(path, tiles, colours=None, columns=32):
+    """Write an exact 32x16 sheet of upright 8x8 tiles without padding."""
+    rows = (len(tiles) + columns - 1) // columns
+    width = columns * TILE_WIDTH
+    height = rows * TILE_HEIGHT
+    if colours is None:
+        colours = ((8, 8, 24), (230, 230, 230),
+                   (194, 0, 194), (0, 77, 255))
+    image = [bytearray(width * 3) for _ in range(height)]
+
+    for tile_index, tile in enumerate(tiles):
+        cell_x = tile_index % columns
+        cell_y = tile_index // columns
+        origin_x = cell_x * TILE_WIDTH
+        origin_y = cell_y * TILE_HEIGHT
+        for y in range(TILE_HEIGHT):
+            for x in range(TILE_WIDTH):
+                colour = colours[tile[y * TILE_WIDTH + x]]
+                row = image[origin_y + y]
+                offset = (origin_x + x) * 3
+                row[offset:offset + 3] = bytes(colour)
+
+    raw = b"".join(b"\x00" + bytes(row) for row in image)
+    payload = (b"\x89PNG\r\n\x1a\n" +
+               png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) +
+               png_chunk(b"IDAT", zlib.compress(raw, 9)) +
+               png_chunk(b"IEND", b""))
+    Path(path).write_bytes(payload)
+
+
+def decode_arcade_palette(b4, b5):
+    """Decode the two 32-byte resistor-network palette PROMs like MAME."""
+    palette = []
+    weights = (0x19, 0x24, 0x35, 0x40, 0x4D)
+    for index in range(32):
+        red_bits = ((b5[index] >> bit) & 1 for bit in range(1, 6))
+        green_bits = (
+            (b5[index] >> 6) & 1,
+            (b5[index] >> 7) & 1,
+            (b4[index] >> 0) & 1,
+            (b4[index] >> 1) & 1,
+            (b4[index] >> 2) & 1,
+        )
+        blue_bits = ((b4[index] >> bit) & 1 for bit in range(3, 8))
+        red = sum(weight * bit for weight, bit in zip(weights, red_bits))
+        green = sum(weight * bit for weight, bit in zip(weights, green_bits))
+        blue = sum(weight * bit for weight, bit in zip(weights, blue_bits))
+        palette.append((red, green, blue))
+    return palette
+
+
+def write_palette_variants(path, tiles, palette, char_lookup):
+    """Apply each of the 32 original Color-RAM values through PROM E12."""
+    output_dir = Path(path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for attribute in range(32):
+        colours = []
+        for pixel in range(4):
+            palette_index = (char_lookup[attribute * 4 + pixel] & 0x0F) + 0x10
+            colours.append(palette[palette_index])
+        write_tilesheet(
+            output_dir / f"time-pilot-font-{attribute:02x}.png",
+            tiles,
+            colours,
+        )
+    (output_dir / ".stamp").write_text("32 PROM-applied character palettes\n")
+
+
+def format_c_bytes(values, indent="    "):
+    lines = []
+    for offset in range(0, len(values), 8):
+        lines.append(indent + ", ".join(
+            f"0x{value:02X}" for value in values[offset:offset + 8]) + ",")
+    return lines
+
+
+def write_header(path, tiles):
+    lines = [f"""/* Generated by tools/extract_timepilot_font.py; do not edit. */
+#ifndef TIME_PILOT_FONT_H
+#define TIME_PILOT_FONT_H
+
+#define TIME_PILOT_FONT_TILE_COUNT {TILE_COUNT}
+#define TIME_PILOT_FONT_TILE_WIDTH {TILE_WIDTH}
+#define TIME_PILOT_FONT_TILE_HEIGHT {TILE_HEIGHT}
+#define TIME_PILOT_FONT_BYTES_PER_TILE {OUTPUT_BYTES_PER_TILE}
+#define TIME_PILOT_FONT_DATA_SIZE {TILE_COUNT * OUTPUT_BYTES_PER_TILE}
+#define TIME_PILOT_HI_SCORE_LENGTH {len(HI_SCORE_TILE_CODES)}
+
+/* Confirmed from the Z80 BCD renderer's lookup table at ROM $0dcc. */
+static const unsigned char time_pilot_digit_tile_codes[10] = {{"""]
+    lines += format_c_bytes(DIGIT_TILE_CODES)
+    lines += ["};", "", "/* Confirmed text record 5: HI-SCORE. */",
+              "static const unsigned char time_pilot_hi_score_tile_codes[8] = {"]
+    lines += format_c_bytes(HI_SCORE_TILE_CODES)
+    lines += ["};", "", "/* Upright MEGA65 4-bpp glyphs: digits 0-9, then HI-SCORE. */",
+              "static const unsigned char time_pilot_hud_glyphs[18][32] = {"]
+    for code in DIGIT_TILE_CODES + HI_SCORE_TILE_CODES:
+        lines.append("    {")
+        lines += format_c_bytes(pack_mega65_4bpp(tiles[code]), "        ")
+        lines.append("    },")
+    lines += ["};", "", "#endif", ""]
+
+    Path(path).write_text("\n".join(lines))
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("rom_dir")
+    parser.add_argument("output_bin")
+    parser.add_argument("output_png")
+    parser.add_argument("output_header")
+    parser.add_argument("--palette-dir")
+    args = parser.parse_args()
+
+    rom_path = Path(args.rom_dir) / "tm6"
+    rom = rom_path.read_bytes()
+    if len(rom) != TILE_COUNT * SOURCE_BYTES_PER_TILE:
+        raise ValueError(f"tm6 has {len(rom)} bytes, expected 8192")
+    digest = hashlib.sha1(rom).hexdigest()
+    if digest != EXPECTED_TM6_SHA1:
+        raise ValueError(f"unexpected tm6 SHA-1: {digest}")
+
+    tiles = [rotate_upright(decode_tile(rom, index))
+             for index in range(TILE_COUNT)]
+    output_bin = Path(args.output_bin)
+    output_bin.parent.mkdir(parents=True, exist_ok=True)
+    output_bin.write_bytes(b"".join(pack_mega65_4bpp(tile) for tile in tiles))
+    write_tilesheet(args.output_png, tiles)
+    write_header(args.output_header, tiles)
+
+    if args.palette_dir:
+        prom_files = (
+            ("timeplt.b4", EXPECTED_B4_SHA1),
+            ("timeplt.b5", EXPECTED_B5_SHA1),
+            ("timeplt.e12", EXPECTED_E12_SHA1),
+        )
+        prom_data = []
+        for filename, expected_sha1 in prom_files:
+            data = (Path(args.rom_dir) / filename).read_bytes()
+            digest = hashlib.sha1(data).hexdigest()
+            if digest != expected_sha1:
+                raise ValueError(f"unexpected {filename} SHA-1: {digest}")
+            prom_data.append(data)
+        palette = decode_arcade_palette(prom_data[0], prom_data[1])
+        write_palette_variants(
+            args.palette_dir, tiles, palette, prom_data[2])
+
+
+if __name__ == "__main__":
+    main()

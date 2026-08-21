@@ -1,5 +1,4 @@
-#define TIMEPILOT_CENTERED
-#define FOREGROUND_CLOUD_COUNT 4
-#define FLIGHT_DIRECTIONS_HEADER "../timepilot/generated/directions.h"
+#define TIMEPILOT_OBJECT_MODEL
+#define FLIGHT_DIRECTIONS_HEADER "../timepilot/generated/object_directions.h"
 
-#include "../flight_demo/main.c"
+#include "../cloud_multiplex_demo/main.c"

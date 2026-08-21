@@ -50,7 +50,8 @@ Raster-Rewrite-Buffer-Abstraktion.
 
 Der detaillierte, phasenweise Arbeits- und Prüfplan steht in [`PLAN.md`](PLAN.md).
 Der aktuelle Frame-Pseudocode steht in [`frame-flow.md`](frame-flow.md), das
-Sprite-Registermodell in [`sprite-hardware.md`](sprite-hardware.md).
+Sprite-Registermodell in [`sprite-hardware.md`](sprite-hardware.md) und das
+feste Pool-/Shadow-Modell in [`object-model.md`](object-model.md).
 
 Quelle für Speicherkarte und Hardwareverhalten ist der
 [offizielle MAME-Time-Pilot-Treiber](https://github.com/mamedev/mame/blob/master/src/mame/konami/timeplt.cpp).

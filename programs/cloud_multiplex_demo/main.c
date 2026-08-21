@@ -3,11 +3,19 @@
 
 #include "time_pilot_colors.h"
 #include "../../shared/generated/time-pilot-clouds.h"
-#include "generated/directions.h"
+#ifndef FLIGHT_DIRECTIONS_HEADER
+#define FLIGHT_DIRECTIONS_HEADER "generated/directions.h"
+#endif
+#include FLIGHT_DIRECTIONS_HEADER
+#ifdef TIMEPILOT_OBJECT_MODEL
+#include "../timepilot/object_model.h"
+#include "../timepilot/hud.h"
+#endif
 
 #define REG8(address) (*(volatile unsigned char *)(address))
 
 #define VIC_KEY          REG8(0xD02F)
+#define VIC_CTRL2        REG8(0xD030)
 #define VIC_CTRL1        REG8(0xD011)
 #define VIC_RASTER       REG8(0xD012)
 #define SPRITE_X_MSB     REG8(0xD010)
@@ -15,6 +23,7 @@
 #define SPRITE_Y_EXPAND  REG8(0xD017)
 #define SPRITE_MULTICOLOR REG8(0xD01C)
 #define SPRITE_X_EXPAND  REG8(0xD01D)
+#define SPRITE_PRIORITY  REG8(0xD01B)
 #define VIC_IRQ_STATUS   REG8(0xD019)
 #define VIC_IRQ_MASK     REG8(0xD01A)
 #define BORDER_COLOR     REG8(0xD020)
@@ -77,11 +86,13 @@ volatile unsigned char rewrite_x[MAX_EVENTS * BUFFER_COUNT];
 volatile unsigned char rewrite_x_msb[MAX_EVENTS * BUFFER_COUNT];
 volatile unsigned char rewrite_y[MAX_EVENTS * BUFFER_COUNT];
 
+#ifndef TIMEPILOT_OBJECT_MODEL
 struct Cloud {
     long x;
     long y;
     unsigned char speed;
 };
+#endif
 
 struct CloudPair {
     unsigned int first_x;
@@ -91,7 +102,11 @@ struct CloudPair {
     unsigned char rewrite_line;
 };
 
+#ifndef TIMEPILOT_OBJECT_MODEL
 static struct Cloud clouds[SLOT_COUNT];
+#else
+#define clouds tp_objects
+#endif
 static struct CloudPair cloud_pairs[SLOT_COUNT];
 
 static const unsigned int initial_x[SLOT_COUNT] = {
@@ -117,8 +132,17 @@ static unsigned char read_cursor_keys(void)
     unsigned char port_a;
     unsigned char ddr_a;
     unsigned char ddr_b;
+#ifdef TIMEPILOT_OBJECT_MODEL
+    unsigned char vic_ctrl2;
+#endif
 
     __asm__("sei");
+#ifdef TIMEPILOT_OBJECT_MODEL
+    /* CRAM2K maps the upper SEAM colour RAM over $DC00. Temporarily expose
+       CIA 1 while sampling the held cursor key, then restore the FCM HUD. */
+    vic_ctrl2 = VIC_CTRL2;
+    VIC_CTRL2 = vic_ctrl2 & 0xFE;
+#endif
     port_a = CIA1_PORT_A;
     ddr_a = CIA1_DDR_A;
     ddr_b = CIA1_DDR_B;
@@ -129,6 +153,9 @@ static unsigned char read_cursor_keys(void)
     CIA1_PORT_A = port_a;
     CIA1_DDR_A = ddr_a;
     CIA1_DDR_B = ddr_b;
+#ifdef TIMEPILOT_OBJECT_MODEL
+    VIC_CTRL2 = vic_ctrl2;
+#endif
     __asm__("cli");
 
     if ((IMMEDIATE_KEYS & 0x01) || (cursor_right && (MODIFIER_KEYS & 0x03))) {
@@ -213,6 +240,13 @@ static void initialise_cloud_sprites(void)
        at $5000 in FLIGHTDATA; changing direction copies one source frame into
        $3f00. The VIC itself remains on the proven bank-0 pointer path. */
     VIC_HOTREG &= 0x7F;
+#ifdef TIMEPILOT_OBJECT_MODEL
+    /* FCM uses all $0800-$0fff as two-byte screen RAM, including the classic
+       pointer-table location. Keep the eight sprite pointers in free RAM. */
+    SPRITE_PTR_LOW = 0x00;
+    SPRITE_PTR_HIGH = 0x3E;
+    SPRITE_PTR_BANK &= 0x7F;
+#endif
     pointer_table_address =
         SPRITE_PTR_LOW | ((unsigned int)SPRITE_PTR_HIGH << 8);
     pointer_table = (unsigned char *)pointer_table_address;
@@ -225,7 +259,11 @@ static void initialise_cloud_sprites(void)
     pointer_table[0] = PLANE_DATA_ADDRESS / 64;
     memcpy(PLANE_DATA, flight_frames[8], FLIGHT_FRAME_SIZE);
     SPRITE_COLOR[0] = 0;
+#ifdef TIMEPILOT_OBJECT_MODEL
+    set_sprite_position(0, 128, 120);
+#else
     set_sprite_position(0, 176, 120);
+#endif
 
     for (slot = FIRST_CLOUD_SLOT; slot < SLOT_COUNT; ++slot) {
         address = CLOUD_DATA_ADDRESS +
@@ -245,6 +283,14 @@ static void initialise_cloud_sprites(void)
     SPRITE_X64EN = 0xFF;
     SPRITE_16EN = 0xFF;
     SPRITE_MULTICOLOR = 0x00;
+    /* The Time Pilot HUD is opaque character foreground; the blue playfield
+       uses background pixels. Put sprites behind foreground so clouds and the
+       player pass naturally underneath the black score panel. */
+#ifdef TIMEPILOT_OBJECT_MODEL
+    SPRITE_PRIORITY = 0xFF;
+#else
+    SPRITE_PRIORITY = 0x00;
+#endif
     SPRITE_X_EXPAND = (SPRITE_X_EXPAND & 0x00) | LARGE_CLOUD_MASK;
     SPRITE_Y_EXPAND = (SPRITE_Y_EXPAND & 0x00) | LARGE_CLOUD_MASK;
     SPRITE_ENABLE = 0xFF;
@@ -272,6 +318,17 @@ static void add_event(
 static void calculate_cloud_pair(unsigned char slot)
 {
     struct CloudPair *pair = &cloud_pairs[slot];
+#ifdef TIMEPILOT_OBJECT_MODEL
+    struct TpCloudRender render;
+    unsigned char height = slot <= 3 ? 32 : 16;
+
+    tp_project_cloud(slot, height, RASTER_SAFETY_LINES, &render);
+    pair->first_x = render.first_x;
+    pair->second_x = render.second_x;
+    pair->first_y = render.first_y;
+    pair->second_y = render.second_y;
+    pair->rewrite_line = render.rewrite_line;
+#else
     unsigned int first_x = (unsigned int)(clouds[slot].x >> CLOUD_FIXED_SHIFT) & 0x01FF;
     unsigned int second_x = (first_x + 128) & 0x01FF;
     unsigned char first_y = (unsigned char)(clouds[slot].y >> CLOUD_FIXED_SHIFT);
@@ -294,6 +351,7 @@ static void calculate_cloud_pair(unsigned char slot)
     pair->first_y = first_y;
     pair->second_y = second_y;
     pair->rewrite_line = first_y + height + RASTER_SAFETY_LINES;
+#endif
 }
 
 static void build_buffer(unsigned char buffer)
@@ -380,6 +438,9 @@ static void install_first_cloud_copies(void)
 
 static void update_clouds(unsigned char direction)
 {
+#ifdef TIMEPILOT_OBJECT_MODEL
+    tp_update_objects(direction, vectors);
+#else
     unsigned char slot;
     const long x_range = (long)512 << CLOUD_FIXED_SHIFT;
     const long y_range = (long)256 << CLOUD_FIXED_SHIFT;
@@ -393,6 +454,7 @@ static void update_clouds(unsigned char direction)
         while (clouds[slot].y < 0) clouds[slot].y += y_range;
         while (clouds[slot].y >= y_range) clouds[slot].y -= y_range;
     }
+#endif
 }
 
 static void publish_next_frame(void)
@@ -488,7 +550,17 @@ int main(void)
     install_palette();
     BORDER_COLOR = TIME_PILOT_BACKGROUND_INDEX;
     BACKGROUND_COLOR = TIME_PILOT_BACKGROUND_INDEX;
+#ifdef TIMEPILOT_OBJECT_MODEL
+    /* Configure the 16-bit FCM screen before fixing the sprite-pointer table.
+       Changing the VIC screen layout can also change the classic pointer-table
+       path. initialise_cloud_sprites() must therefore be the final owner of
+       $D06C-$D06E. */
+    tp_hud_initialise();
+#endif
     initialise_cloud_sprites();
+#ifdef TIMEPILOT_OBJECT_MODEL
+    tp_initialise_objects(initial_x, initial_y);
+#endif
     select_plane_direction(direction);
 
 #if SINGLE_CLOUD_DIAGNOSTIC
@@ -549,10 +621,12 @@ int main(void)
     SPRITE_16EN = 0xFF;
     SPRITE_MULTICOLOR = 0x00;
 
+#ifndef TIMEPILOT_OBJECT_MODEL
     gotoxy(1, 1);
     cprintf("TIME PILOT CLOUD MULTIPLEX");
     gotoxy(1, 2);
     cprintf("LINKS/RECHTS, D DEBUG, Q ENDET");
+#endif
 
     while (1) {
         SPRITE_X64EN = 0xFF;
@@ -563,6 +637,9 @@ int main(void)
             if (turn_frames == 0) {
                 if (held_keys == KEY_HELD_LEFT) direction = (direction - 1) & 31;
                 else direction = (direction + 1) & 31;
+#ifdef TIMEPILOT_OBJECT_MODEL
+                tp_set_player_direction(direction);
+#endif
                 select_plane_direction(direction);
                 turn_frames = TURN_FRAME_INTERVAL - 1;
             } else {

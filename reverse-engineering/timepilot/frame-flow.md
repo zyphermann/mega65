@@ -130,3 +130,6 @@ void mega65_frame(void)
 
 Der Raster-IRQ arbeitet nur den bereits sortierten Frontbuffer ab. Dadurch
 hängt das Timing nicht von der Laufzeit einzelner C-Spielroutinen ab.
+
+Die bestätigte Verwaltung der festen 16-Byte-Objektpools und ihre Kopplung an
+die 24 Shadow-Sprites ist in [`object-model.md`](object-model.md) beschrieben.
