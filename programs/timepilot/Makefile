@@ -1,5 +1,5 @@
 PROGRAM := timepilot
-SOURCES := main.c object_model.c hud.c hud_data.s ../raster_rewrite_demo/raster_irq.s
+SOURCES := main.c object_model.c timepilot_layout.c hud.c hud_data.s ../raster_rewrite_demo/raster_irq.s
 GENERATED_DIR := generated
 GENERATED_HEADER := $(GENERATED_DIR)/object_directions.h
 SCORE_GENERATED := $(GENERATED_DIR)/score.bin $(GENERATED_DIR)/shot_table.bin \

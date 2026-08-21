@@ -36,6 +36,11 @@
 #define SPRITE_PTR_HIGH  REG8(0xD06D)
 #define SPRITE_PTR_BANK  REG8(0xD06E)
 #define VIC_HOTREG       REG8(0xD05D)
+#define VIC_TOP_BORDER_LO REG8(0xD048)
+#define VIC_TOP_BORDER_HI REG8(0xD049)
+#define VIC_TEXT_Y_LO     REG8(0xD04E)
+#define VIC_TEXT_Y_HI     REG8(0xD04F)
+#define VIC_SPRITE_Y_ADJUST REG8(0xD072)
 #define PALETTE_CONTROL  REG8(0xD070)
 #define PALETTE_RED      ((volatile unsigned char *)0xD100)
 #define PALETTE_GREEN    ((volatile unsigned char *)0xD200)
@@ -52,13 +57,8 @@
 /* Runtime VIC sprite buffers live below the PRG, after the 2 KB FCM screen.
    They must never be placed at the top of MAIN/BSS: adding ordinary C state
    previously grew BSS through $3f00 and the sprite memcpy then destroyed it. */
-#ifdef TIMEPILOT_OBJECT_MODEL
 #define PLANE_DATA_ADDRESS           0x1800
 #define CLOUD_DATA_ADDRESS           0x1880
-#else
-#define PLANE_DATA_ADDRESS           0x3F00
-#define CLOUD_DATA_ADDRESS           0x3F80
-#endif
 #define CLOUD_DATA(frame) ((unsigned char *)(CLOUD_DATA_ADDRESS + (unsigned int)(frame) * 128))
 #define PLANE_DATA ((unsigned char *)PLANE_DATA_ADDRESS)
 #define RESIDENT_CLOUD_FRAMES 1
@@ -87,6 +87,8 @@
 #define KEY_HELD_FIRE  0x04
 #define KEY_HELD_UP    0x08
 #define KEY_HELD_DOWN  0x10
+#define EVENT_BORDER_WHITE 0xFE
+#define EVENT_BORDER_SCREEN 0xFF
 #define DIRECTION_COUNT 32
 #define SOUTH 8
 #define NORTH 24
@@ -130,7 +132,6 @@ static struct CloudPair cloud_pairs[SLOT_COUNT];
 static const unsigned int initial_x[SLOT_COUNT] = {
     20, 92, 174, 250, 45, 130, 214, 300
 };
-
 static const unsigned char initial_y[SLOT_COUNT] = {
     24, 58, 88, 34, 72, 18, 102, 50
 };
@@ -326,7 +327,9 @@ static void initialise_cloud_sprites(void)
 #ifdef TIMEPILOT_OBJECT_MODEL
     /* Geometry and the small optical artwork correction live separately in
        timepilot_layout.h; gameplay/projectile coordinates stay unchanged. */
-    set_sprite_position(0, TP_PLAYER_VIC_X, TP_PLAYER_VIC_Y);
+    set_sprite_position(0,
+                        tp_sprite_x(TP_PLAYER_LOGICAL_X),
+                        tp_sprite_y(TP_PLAYER_LOGICAL_Y));
 #else
     set_sprite_position(0, 176, 120);
 #endif
@@ -420,6 +423,10 @@ static void calculate_cloud_pair(unsigned char slot)
 #endif
 }
 
+#ifdef TIMEPILOT_OBJECT_MODEL
+#pragma code-name ("OBJECTCODE")
+#endif
+
 static void build_buffer(unsigned char buffer)
 {
     unsigned char base = buffer * MAX_EVENTS;
@@ -429,6 +436,20 @@ static void build_buffer(unsigned char buffer)
     unsigned char index;
     unsigned char previous;
     unsigned char candidate;
+#ifdef TIMEPILOT_OBJECT_MODEL
+    unsigned char screen_event_added = 0;
+    /* TBDRPOS is expressed in physical VIC-IV rasters. The active V200
+       raster IRQ uses one VIC-II line for two physical rasters. */
+    unsigned int screen_raster =
+        (VIC_TOP_BORDER_LO |
+         ((unsigned int)(VIC_TOP_BORDER_HI & 0x0F) << 8)) >> 1;
+#endif
+
+#ifdef TIMEPILOT_OBJECT_MODEL
+    /* Border probes are ordinary sorted rewrite events. Keeping them in the
+       same queue avoids a second raster-IRQ state machine. */
+    add_event(&event, base, 0, EVENT_BORDER_WHITE, 0, 0);
+#endif
 
     /* Normalize both copies, then sort their individual safe rewrite lines. */
     for (slot = FIRST_CLOUD_SLOT; slot < SLOT_COUNT; ++slot) {
@@ -449,6 +470,14 @@ static void build_buffer(unsigned char buffer)
 
     for (index = 0; index < CLOUD_SLOT_COUNT; ++index) {
         slot = order[index];
+#ifdef TIMEPILOT_OBJECT_MODEL
+        if (!screen_event_added &&
+            cloud_pairs[slot].rewrite_line >= screen_raster) {
+            add_event(&event, base, screen_raster,
+                      EVENT_BORDER_SCREEN, 0, 0);
+            screen_event_added = 1;
+        }
+#endif
         add_event(
             &event,
             base,
@@ -457,22 +486,41 @@ static void build_buffer(unsigned char buffer)
             cloud_pairs[slot].second_x,
             cloud_pairs[slot].second_y);
     }
+#ifdef TIMEPILOT_OBJECT_MODEL
+    if (!screen_event_added)
+        add_event(&event, base, screen_raster, EVENT_BORDER_SCREEN, 0, 0);
+#endif
     for (slot = FIRST_CLOUD_SLOT; slot < SLOT_COUNT; ++slot) {
         add_event(
             &event,
             base,
             RESTORE_RASTER_LINE,
+#ifdef TIMEPILOT_OBJECT_MODEL
+            /* Bit 7 marks the first restore event: the IRQ turns the border
+               black, then masks the bit and restores sprite slot 1. */
+            slot == FIRST_CLOUD_SLOT ? (slot | 0x80) : slot,
+#else
             slot,
+#endif
             cloud_pairs[slot].first_x,
             cloud_pairs[slot].first_y);
     }
     rewrite_count[buffer] = event;
 }
 
+#ifdef TIMEPILOT_OBJECT_MODEL
+#pragma code-name ("CODE")
+#endif
+
 static void copy_restore_group(unsigned char from_buffer, unsigned char to_buffer)
 {
+#ifdef TIMEPILOT_OBJECT_MODEL
+    unsigned char source = from_buffer * MAX_EVENTS + CLOUD_SLOT_COUNT + 2;
+    unsigned char target = to_buffer * MAX_EVENTS + CLOUD_SLOT_COUNT + 2;
+#else
     unsigned char source = from_buffer * MAX_EVENTS + CLOUD_SLOT_COUNT;
     unsigned char target = to_buffer * MAX_EVENTS + CLOUD_SLOT_COUNT;
+#endif
     unsigned char event;
 
     /* Called with IRQs disabled. Only the restore half of the active queue is
@@ -627,6 +675,15 @@ int main(void)
        path. initialise_cloud_sprites() must therefore be the final owner of
        $D06C-$D06E. */
     tp_hud_initialise();
+    tp_layout_initialise();
+    /* Temporary player-coordinate probe. These are exactly the projected VIC
+       values subsequently written to sprite slot 0 at $D000/$D001. Rendering
+       through the FCM HUD avoids corrupting its two-byte screen cells. */
+    tp_hud_set_scores(
+        tp_sprite_y(TP_PLAYER_LOGICAL_Y),
+        (unsigned long)(VIC_TEXT_Y_LO |
+            ((unsigned int)(VIC_TEXT_Y_HI & 0x0F) << 8)) * 100UL +
+            VIC_SPRITE_Y_ADJUST);
 #endif
     initialise_cloud_sprites();
 #ifdef TIMEPILOT_OBJECT_MODEL
@@ -742,6 +799,12 @@ int main(void)
 #endif
 
 #ifdef TIMEPILOT_OBJECT_MODEL
+        /* Slot 0 is projected from the same invariant logical coordinate on
+           every frame. This also applies presentation changes immediately if
+           Xemu switches PAL/NTSC while the program is running. */
+        set_sprite_position(0,
+                            tp_sprite_x(TP_PLAYER_LOGICAL_X),
+                            tp_sprite_y(TP_PLAYER_LOGICAL_Y));
         tp_set_fire((held_keys & KEY_HELD_FIRE) != 0, direction);
         tp_update_shots(vectors);
         tp_hud_render_shots();
@@ -755,6 +818,9 @@ int main(void)
                 rewrite_debug_enabled ^= 1;
                 if (!rewrite_debug_enabled) {
                     BACKGROUND_COLOR = TIME_PILOT_BACKGROUND_INDEX;
+#ifdef TIMEPILOT_OBJECT_MODEL
+                    BORDER_COLOR = 0xE0;
+#endif
                 }
                 __asm__("cli");
             }

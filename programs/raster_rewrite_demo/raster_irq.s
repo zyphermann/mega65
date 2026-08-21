@@ -27,8 +27,14 @@ VIC_SPRITE_X_MSB  = $d010
 VIC_CTRL1         = $d011
 VIC_RASTER        = $d012
 VIC_IRQ_STATUS    = $d019
+VIC_BORDER        = $d020
 VIC_BACKGROUND    = $d021
 KERNAL_IRQ_VECTOR = $0314
+EVENT_BORDER_WHITE = $fe
+EVENT_BORDER_SCREEN = $ff
+PROBE_WHITE        = $ef
+PROBE_SCREEN       = $e1
+PROBE_BLACK        = $e0
 
         .segment        "ONCE"
 
@@ -83,6 +89,20 @@ is_raster_irq:
 process_event:
         ; Y becomes the VIC position-register offset (slot * 2).
         ldy     _rewrite_slot,x
+        cpy     #EVENT_BORDER_WHITE
+        beq     border_white
+        cpy     #EVENT_BORDER_SCREEN
+        beq     border_screen
+        tya
+        bpl     sprite_event
+        ; A marked first restore event also closes the border probe.
+        and     #$07
+        tay
+        lda     _rewrite_debug_enabled
+        beq     sprite_event
+        lda     #PROBE_BLACK
+        sta     VIC_BORDER
+sprite_event:
         lda     sprite_bit,y
         sta     irq_sprite_bit
         tya
@@ -107,7 +127,22 @@ clear_x_msb:
 
 store_x_msb:
         sta     VIC_SPRITE_X_MSB
+        bra     event_complete
 
+border_white:
+        lda     _rewrite_debug_enabled
+        beq     event_complete
+        lda     #PROBE_WHITE
+        sta     VIC_BORDER
+        bra     event_complete
+
+border_screen:
+        lda     _rewrite_debug_enabled
+        beq     event_complete
+        lda     #PROBE_SCREEN
+        sta     VIC_BORDER
+
+event_complete:
         inc     _rewrite_event
         ldx     _rewrite_front
         lda     _rewrite_event
@@ -131,7 +166,8 @@ more_events:
         bne     schedule_next
         lda     _rewrite_raster_msb,x
         cmp     irq_raster_msb
-        beq     process_event            ; Same-line events share one IRQ.
+        bne     schedule_next
+        jmp     process_event            ; Same-line events share one IRQ.
 
 schedule_next:
         jsr     load_event_index

@@ -171,6 +171,9 @@ void tp_project_cloud(unsigned char slot, unsigned char height,
         second_y = swap_y;
     }
 
+    /* Clouds retain the proven raster-space projection used by the stable
+       multiplexer. Viewport conversion must happen before this render stage,
+       never inside the IRQ-buffer builder. */
     render->first_x = first_x;
     render->second_x = second_x;
     render->first_y = first_y;
