@@ -9,6 +9,7 @@
 #define TP_OBJECT_ACTIVE 1
 #define TP_OBJECT_PLAYER 1
 #define TP_OBJECT_CLOUD 2
+#define TP_SHOT_COUNT 6
 
 /* Fixed pool: no pointers and no allocation, matching the original design. */
 struct TpObject {
@@ -29,11 +30,20 @@ struct TpCloudRender {
     unsigned char rewrite_line;
 };
 
+struct TpShot {
+    unsigned char active;
+    long x;
+    long y;
+};
+
 extern struct TpObject tp_objects[TP_OBJECT_COUNT];
+extern struct TpShot tp_shots[TP_SHOT_COUNT];
 
 void tp_initialise_objects(const unsigned int *initial_x,
                            const unsigned char *initial_y);
 void tp_set_player_direction(unsigned char direction);
+void tp_set_fire(unsigned char held, unsigned char direction);
+void tp_update_shots(const signed char vectors[32][2]);
 void tp_update_objects(unsigned char direction,
                        const signed char vectors[32][2]);
 void tp_project_cloud(unsigned char slot, unsigned char height,

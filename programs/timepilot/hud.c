@@ -1,6 +1,7 @@
 #include "hud.h"
 #include "generated/score_data.h"
 #include "time_pilot_colors.h"
+#include "object_model.h"
 
 #define REG8(address) (*(volatile unsigned char *)(address))
 
@@ -31,6 +32,9 @@
 #define HUD_COLUMN 28
 #define SCORE_PALETTE_BASE 0xE0
 
+static unsigned char previous_shot_x[TP_SHOT_COUNT];
+static unsigned char previous_shot_y[TP_SHOT_COUNT];
+
 static void put_tile(unsigned char x, unsigned char y, unsigned int tile)
 {
     unsigned int offset = ((unsigned int)y * SCREEN_WIDTH + x) * 2;
@@ -38,6 +42,12 @@ static void put_tile(unsigned char x, unsigned char y, unsigned int tile)
     SCREEN_RAM[offset + 1] = tile >> 8;
     COLOR_RAM[offset] = 0;
     COLOR_RAM[offset + 1] = 0;
+}
+
+static void put_playfield_tile(unsigned char x, unsigned char y,
+                               unsigned int tile)
+{
+    if (x < PLAYFIELD_COLUMNS && y < SCREEN_HEIGHT) put_tile(x, y, tile);
 }
 
 static void put_tiles(unsigned char x, unsigned char y,
@@ -64,11 +74,71 @@ void tp_hud_set_scores(unsigned long score, unsigned long high_score)
     put_decimal(HUD_COLUMN + 3, 6, high_score, 5);
 }
 
+void tp_hud_render_shots(void)
+{
+    unsigned char slot;
+
+    /* Clear every old projection first, then draw all current shots. This
+       keeps two projectiles sharing a tile from erasing one another. */
+    for (slot = 0; slot < TP_SHOT_COUNT; ++slot) {
+        if (previous_shot_x[slot] != 0xFF) {
+            unsigned char x = previous_shot_x[slot];
+            unsigned char y = previous_shot_y[slot];
+            put_playfield_tile(x, y, TP_SCORE_BLUE_CHAR);
+            put_playfield_tile(x + 1, y, TP_SCORE_BLUE_CHAR);
+            put_playfield_tile(x, y + 1, TP_SCORE_BLUE_CHAR);
+            put_playfield_tile(x + 1, y + 1, TP_SCORE_BLUE_CHAR);
+        }
+        previous_shot_x[slot] = 0xFF;
+    }
+    for (slot = 0; slot < TP_SHOT_COUNT; ++slot) {
+        if (tp_shots[slot].active) {
+            unsigned char pixel_x = (unsigned char)(tp_shots[slot].x >> 8);
+            unsigned char pixel_y = (unsigned char)(tp_shots[slot].y >> 8);
+            unsigned char adjusted_x;
+            unsigned char adjusted_y;
+            unsigned char x;
+            unsigned char y;
+            unsigned char sub_x;
+            unsigned char sub_y;
+            unsigned char subcell;
+            const unsigned int *tiles;
+            /* The rotated ROM mask's natural anchor is (+7.5,+0.5) inside
+               its 2x2 cell block.  Bias X by -7 so the visible two-pixel
+               projectile is centred on the logical shot coordinate. */
+            if (pixel_x < 7) continue;
+            adjusted_x = pixel_x - 7;
+            adjusted_y = pixel_y;
+            x = adjusted_x >> 3;
+            y = adjusted_y >> 3;
+            sub_x = adjusted_x & 7;
+            sub_y = adjusted_y & 7;
+            /* $5337 and $53d4 describe the portrait arcade tilemap.  Every
+               tm6 glyph was rotated 90 degrees clockwise for MEGA65, so the
+               lookup phase and its 2x2 neighbourhood must rotate as well.
+               $5337 already exchanges the screen axes while forming its
+               address, hence only X is reversed here (not exchanged again):
+               (x,y) -> (7-x,y), and A B / C D -> C A / D B. */
+            subcell = ((7 - sub_x) << 3) | sub_y;
+            tiles = TP_SCORE_SHOT_TABLE + (unsigned int)subcell * 4;
+            previous_shot_x[slot] = x;
+            previous_shot_y[slot] = y;
+            if (tiles[2] != 0xFFFF) put_playfield_tile(x, y, tiles[2]);
+            if (tiles[0] != 0xFFFF) put_playfield_tile(x + 1, y, tiles[0]);
+            if (tiles[3] != 0xFFFF) put_playfield_tile(x, y + 1, tiles[3]);
+            if (tiles[1] != 0xFFFF) put_playfield_tile(x + 1, y + 1, tiles[1]);
+        }
+    }
+}
+
 void tp_hud_initialise(void)
 {
     unsigned int cell;
     unsigned char index;
     unsigned char life;
+
+    for (index = 0; index < TP_SHOT_COUNT; ++index)
+        previous_shot_x[index] = 0xFF;
 
     /* The seven cloud slots occupy palette indices $10-$7f. Keep text and
        sprites in bank 0 and place the 16 HUD colours at the unused $e0-$ef.
@@ -93,7 +163,7 @@ void tp_hud_initialise(void)
     VIC_COLOR_LO = 0;
     VIC_COLOR_HI = 0;
     /* FCM character N begins at CHARPTR + N*64. The generated HUD starts at
-       character 384 ($6000 / 64), so the base must be exactly zero instead
+       character 512 ($8000 / 64), so the base must be exactly zero instead
        of whichever legacy charset pointer the KERNAL left behind. */
     VIC_CHAR_LO = 0;
     VIC_CHAR_HI = 0;

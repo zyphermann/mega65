@@ -3,5 +3,6 @@
 
 void tp_hud_initialise(void);
 void tp_hud_set_scores(unsigned long score, unsigned long high_score);
+void tp_hud_render_shots(void);
 
 #endif

@@ -49,8 +49,16 @@
 #define CIA1_DDR_A       REG8(0xDC02)
 #define CIA1_DDR_B       REG8(0xDC03)
 
+/* Runtime VIC sprite buffers live below the PRG, after the 2 KB FCM screen.
+   They must never be placed at the top of MAIN/BSS: adding ordinary C state
+   previously grew BSS through $3f00 and the sprite memcpy then destroyed it. */
+#ifdef TIMEPILOT_OBJECT_MODEL
+#define PLANE_DATA_ADDRESS           0x1800
+#define CLOUD_DATA_ADDRESS           0x1880
+#else
 #define PLANE_DATA_ADDRESS           0x3F00
 #define CLOUD_DATA_ADDRESS           0x3F80
+#endif
 #define CLOUD_DATA(frame) ((unsigned char *)(CLOUD_DATA_ADDRESS + (unsigned int)(frame) * 128))
 #define PLANE_DATA ((unsigned char *)PLANE_DATA_ADDRESS)
 #define RESIDENT_CLOUD_FRAMES 1
@@ -62,13 +70,23 @@
 #define BUFFER_COUNT 2
 #define EVENTS_PER_BUFFER 16
 #define RESTORE_RASTER_LINE 260
+#ifdef TIMEPILOT_OBJECT_MODEL
+#include "../timepilot/timepilot_layout.h"
+#define LARGE_CLOUD_MASK 0x1E
+#define LARGE_CLOUD_LAST_SLOT 4
+#else
 #define LARGE_CLOUD_MASK 0x0E
+#define LARGE_CLOUD_LAST_SLOT 3
+#endif
 #define RASTER_SAFETY_LINES 12
 #define DEBUG_COLOR_BASE 0xF0
 #define CLOUD_FIXED_SHIFT 8
 #define TURN_FRAME_INTERVAL 2
 #define KEY_HELD_LEFT  0x01
 #define KEY_HELD_RIGHT 0x02
+#define KEY_HELD_FIRE  0x04
+#define KEY_HELD_UP    0x08
+#define KEY_HELD_DOWN  0x10
 #define DIRECTION_COUNT 32
 #define SOUTH 8
 #define NORTH 24
@@ -129,6 +147,10 @@ static unsigned char read_cursor_keys(void)
 {
     unsigned char keys = 0;
     unsigned char cursor_right;
+    unsigned char cursor_down;
+#ifdef TIMEPILOT_OBJECT_MODEL
+    unsigned char space_held;
+#endif
     unsigned char port_a;
     unsigned char ddr_a;
     unsigned char ddr_b;
@@ -150,6 +172,11 @@ static unsigned char read_cursor_keys(void)
     CIA1_DDR_B = 0x00;
     CIA1_PORT_A = 0xFE;
     cursor_right = !(CIA1_PORT_B & 0x04);
+    cursor_down = !(CIA1_PORT_B & 0x80);
+#ifdef TIMEPILOT_OBJECT_MODEL
+    CIA1_PORT_A = 0x7F;
+    space_held = !(CIA1_PORT_B & 0x10);
+#endif
     CIA1_PORT_A = port_a;
     CIA1_DDR_A = ddr_a;
     CIA1_DDR_B = ddr_b;
@@ -163,8 +190,41 @@ static unsigned char read_cursor_keys(void)
     } else if (cursor_right) {
         keys |= KEY_HELD_RIGHT;
     }
+    if ((IMMEDIATE_KEYS & 0x02) ||
+        (cursor_down && (MODIFIER_KEYS & 0x03))) {
+        keys |= KEY_HELD_UP;
+    } else if (cursor_down) {
+        keys |= KEY_HELD_DOWN;
+    }
+#ifdef TIMEPILOT_OBJECT_MODEL
+    if (space_held) keys |= KEY_HELD_FIRE;
+#endif
     return keys;
 }
+
+#ifdef TIMEPILOT_OBJECT_MODEL
+static unsigned char target_direction(unsigned char keys,
+                                      unsigned char *target)
+{
+    signed char horizontal = 0;
+    signed char vertical = 0;
+
+    if (keys & KEY_HELD_LEFT) --horizontal;
+    if (keys & KEY_HELD_RIGHT) ++horizontal;
+    if (keys & KEY_HELD_UP) --vertical;
+    if (keys & KEY_HELD_DOWN) ++vertical;
+    if (!horizontal && !vertical) return 0;
+
+    if (horizontal > 0) {
+        *target = vertical < 0 ? 28 : (vertical > 0 ? 4 : 0);
+    } else if (horizontal < 0) {
+        *target = vertical < 0 ? 20 : (vertical > 0 ? 12 : 16);
+    } else {
+        *target = vertical < 0 ? 24 : 8;
+    }
+    return 1;
+}
+#endif
 
 static void enable_vic4_registers(void)
 {
@@ -235,16 +295,20 @@ static void initialise_cloud_sprites(void)
        were linked and copied correctly. Multiplexing only rewrites X/Y and
        never needs to change these graphic pointers.
 
-       The runtime plane occupies $3f00-$3f7f and one shared cloud image uses
-       $3f80-$3fff. The 17 immutable direction sources are linked separately
+       In Time Pilot the runtime plane occupies $1800-$187f and one shared
+       cloud image uses $1880-$18ff. These buffers are below the PRG and above
+       the complete FCM screen, so growing C/BSS cannot collide with them.
+       The 17 immutable direction sources are linked separately
        at $5000 in FLIGHTDATA; changing direction copies one source frame into
        $3f00. The VIC itself remains on the proven bank-0 pointer path. */
     VIC_HOTREG &= 0x7F;
 #ifdef TIMEPILOT_OBJECT_MODEL
-    /* FCM uses all $0800-$0fff as two-byte screen RAM, including the classic
-       pointer-table location. Keep the eight sprite pointers in free RAM. */
-    SPRITE_PTR_LOW = 0x00;
-    SPRITE_PTR_HIGH = 0x3E;
+    /* FCM uses all $0800-$0fff as two-byte screen RAM, and growing C/BSS has
+       reached beyond $3e00. In classic 8-bit-pointer mode the table must also
+       remain inside the VIC's 16 KiB bank. $1ff0-$1ff7 is below the PRG load
+       address ($1fff), inside bank 0 and otherwise unused by this program. */
+    SPRITE_PTR_LOW = 0xF0;
+    SPRITE_PTR_HIGH = 0x1F;
     SPRITE_PTR_BANK &= 0x7F;
 #endif
     pointer_table_address =
@@ -260,7 +324,9 @@ static void initialise_cloud_sprites(void)
     memcpy(PLANE_DATA, flight_frames[8], FLIGHT_FRAME_SIZE);
     SPRITE_COLOR[0] = 0;
 #ifdef TIMEPILOT_OBJECT_MODEL
-    set_sprite_position(0, 128, 120);
+    /* Geometry and the small optical artwork correction live separately in
+       timepilot_layout.h; gameplay/projectile coordinates stay unchanged. */
+    set_sprite_position(0, TP_PLAYER_VIC_X, TP_PLAYER_VIC_Y);
 #else
     set_sprite_position(0, 176, 120);
 #endif
@@ -275,7 +341,7 @@ static void initialise_cloud_sprites(void)
         SPRITE_COLOR[slot] = 0;
         clouds[slot].x = (long)initial_x[slot] << CLOUD_FIXED_SHIFT;
         clouds[slot].y = (long)initial_y[slot] << CLOUD_FIXED_SHIFT;
-        clouds[slot].speed = slot <= 3 ? 24 : 8;
+        clouds[slot].speed = slot <= LARGE_CLOUD_LAST_SLOT ? 24 : 8;
     }
 
     SPRITE_HEIGHT = 16;
@@ -320,7 +386,7 @@ static void calculate_cloud_pair(unsigned char slot)
     struct CloudPair *pair = &cloud_pairs[slot];
 #ifdef TIMEPILOT_OBJECT_MODEL
     struct TpCloudRender render;
-    unsigned char height = slot <= 3 ? 32 : 16;
+    unsigned char height = slot <= LARGE_CLOUD_LAST_SLOT ? 32 : 16;
 
     tp_project_cloud(slot, height, RASTER_SAFETY_LINES, &render);
     pair->first_x = render.first_x;
@@ -333,7 +399,7 @@ static void calculate_cloud_pair(unsigned char slot)
     unsigned int second_x = (first_x + 128) & 0x01FF;
     unsigned char first_y = (unsigned char)(clouds[slot].y >> CLOUD_FIXED_SHIFT);
     unsigned char second_y = first_y + 128;
-    unsigned char height = slot <= 3 ? 32 : 16;
+    unsigned char height = slot <= LARGE_CLOUD_LAST_SLOT ? 32 : 16;
 
     /* Whichever member of the diagonal pair is currently higher is drawn
        first. Crossing a 128-pixel band only swaps these two roles. */
@@ -543,6 +609,11 @@ int main(void)
     unsigned char direction = 0;
     unsigned char key;
     unsigned char held_keys;
+#ifndef TIMEPILOT_OBJECT_MODEL
+    unsigned char turn_keys;
+#else
+    unsigned char desired_direction;
+#endif
     unsigned char turn_frames = 0;
 
     clrscr();
@@ -633,9 +704,29 @@ int main(void)
         SPRITE_16EN = 0xFF;
         SPRITE_MULTICOLOR = 0x00;
         held_keys = read_cursor_keys();
-        if (held_keys == KEY_HELD_LEFT || held_keys == KEY_HELD_RIGHT) {
+#ifdef TIMEPILOT_OBJECT_MODEL
+        /* Original $1f2e table: joystick direction selects an absolute target
+           angle. Move toward it over the shortest half-circle; an exact
+           opposite direction follows the clockwise branch used by the Z80. */
+        if (target_direction(held_keys, &desired_direction)) {
+            unsigned char delta = (desired_direction - direction) & 31;
+            if (delta && turn_frames == 0) {
+                if (delta <= 16) direction = (direction + 1) & 31;
+                else direction = (direction - 1) & 31;
+                tp_set_player_direction(direction);
+                select_plane_direction(direction);
+                turn_frames = TURN_FRAME_INTERVAL - 1;
+            } else if (turn_frames) {
+                --turn_frames;
+            }
+        } else {
+            turn_frames = 0;
+        }
+#else
+        turn_keys = held_keys & (KEY_HELD_LEFT | KEY_HELD_RIGHT);
+        if (turn_keys == KEY_HELD_LEFT || turn_keys == KEY_HELD_RIGHT) {
             if (turn_frames == 0) {
-                if (held_keys == KEY_HELD_LEFT) direction = (direction - 1) & 31;
+                if (turn_keys == KEY_HELD_LEFT) direction = (direction - 1) & 31;
                 else direction = (direction + 1) & 31;
 #ifdef TIMEPILOT_OBJECT_MODEL
                 tp_set_player_direction(direction);
@@ -648,6 +739,13 @@ int main(void)
         } else {
             turn_frames = 0;
         }
+#endif
+
+#ifdef TIMEPILOT_OBJECT_MODEL
+        tp_set_fire((held_keys & KEY_HELD_FIRE) != 0, direction);
+        tp_update_shots(vectors);
+        tp_hud_render_shots();
+#endif
 
         if (kbhit()) {
             key = cgetc();

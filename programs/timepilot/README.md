@@ -31,3 +31,39 @@ Das aktuelle Layout teilt die 320 Pixel breite FCM-Fläche in ein 224 Pixel
 breites Spielfeld (28 Tiles) und eine 96 Pixel breite schwarze HUD-Spalte
 (12 Tiles). Unten verwendet `CREDIT` die ROM-Codes
 `$77,$d7,$34,$87,$fd,$dc`; die Anzeige startet bei `02` Credits.
+
+Die vier Pfeiltasten wählen wie beim Arcade-Joystick eine absolute
+Zielrichtung, einschließlich Diagonalen bei zwei gleichzeitig gehaltenen
+Tasten. Das Flugzeug dreht auf dem kürzesten Weg dorthin und behält ohne
+Richtungseingabe seinen aktuellen Kurs. Space startet eine Dreiersalve aus
+dem festen Pool von sechs Tilemap-Projektilen.
+
+Die Projektile folgen der originalen Software-Sprite-Routine `$5337`. Der
+Build konvertiert die vollständige 512-Byte-Tabelle `$53d4-$55d3` aus dem
+Z80-ROM und ihre 81 tatsächlich verwendeten Kombinationen aus `tm6`-Tilecode
+und Farbattribut. Je nach Subposition werden bis zu vier benachbarte
+Tilemapzellen beschrieben; Hardwaresprites werden dafür nicht benötigt.
+
+## Speicherlayout
+
+Das Demo trennt CPU-Laufzeitspeicher und VIC-IV-Grafikdaten dauerhaft:
+
+```text
+$0800-$0fff  40x25-FCM-Screen (16-Bit-Zellen)
+$1800-$187f  Laufzeitkopie des Spieler-Sprites
+$1880-$18ff  gemeinsam verwendete Laufzeit-Wolkengrafik
+$1ff0-$1ff7  klassische VIC-Spritepointer
+$2001-$3fff  C-Code, Konstanten und BSS
+$4000-$41ff  konvertierte Projektil-Lookuptabelle
+$4200-$4fff  Reserve
+$5000-$58ff  Flugrichtungs-/Spritedaten
+$5900-$5fff  Objektmodell-Code
+$6000-$7fff  freier C-Stack (wächst von $8000 abwärts)
+$8000-$9c7f  VIC-IV-FCM-Zeichen im RAM unter dem BASIC-ROM
+```
+
+Der 45GS02 besitzt einen 16-Bit-CPU-Adressraum; deshalb können nicht 64 KiB
+C-Code und zusätzlich ein Stack gleichzeitig direkt eingeblendet sein. Große
+Grafikbestände gehören in das vom VIC-IV sichtbare RAM unter dem ROM oder
+später per DMA in den erweiterten MEGA65-Adressraum. Die CPU-Grenze
+`__HIMEM__ = $8000` darf nicht über die ROM-Einblendung angehoben werden.
