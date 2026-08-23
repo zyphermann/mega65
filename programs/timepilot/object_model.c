@@ -57,9 +57,11 @@ void tp_initialise_objects(const unsigned int *initial_x,
         object->state = TP_OBJECT_ACTIVE;
         object->type = TP_OBJECT_CLOUD;
         object->direction = 0;
-        /* Slots 1..4 form the fast foreground layer; 5..7 are the slower,
-           smaller background clouds. */
-        object->speed = slot <= 4 ? 24 : 8;
+        /* Preserve complete compound clouds within one parallax layer:
+           slots 1..3 are the three-part cloud, 4..5 the fast two-part cloud,
+           and 6..7 the slow two-part background cloud. Splitting at slot 4
+           made the two halves of the second cloud drift apart. */
+        object->speed = slot <= 5 ? 24 : 8;
         object->x = (long)initial_x[slot] << TP_FIXED_SHIFT;
         object->y = (long)initial_y[slot] << TP_FIXED_SHIFT;
     }

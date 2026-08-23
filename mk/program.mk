@@ -8,6 +8,7 @@ MAP := ../../build/$(PROGRAM).map
 EXTRA_DEPS ?=
 CLEAN_FILES ?=
 EXTRA_FLAGS ?=
+RELEASE_FLAGS ?= -Oi -Os
 
 .PHONY: all clean
 
@@ -15,7 +16,7 @@ all: $(OUTPUT)
 
 $(OUTPUT): $(SOURCES) $(SHARED_SOURCES) $(SHARED_HEADERS) $(EXTRA_DEPS)
 	@mkdir -p ../../build
-	$(CC) --target $(TARGET) -O -I $(SHARED_DIR) $(EXTRA_FLAGS) -Wl -m,$(MAP) -o $@ $(SOURCES) $(SHARED_SOURCES)
+	$(CC) --target $(TARGET) $(RELEASE_FLAGS) -I $(SHARED_DIR) $(EXTRA_FLAGS) -Wl -m,$(MAP) -o $@ $(SOURCES) $(SHARED_SOURCES)
 
 clean:
 	$(RM) $(OUTPUT) $(MAP) $(CLEAN_FILES)

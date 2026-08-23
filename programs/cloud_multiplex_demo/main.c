@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "time_pilot_colors.h"
+#define TIME_PILOT_CLOUD_DATA_SEGMENT
 #include "../../shared/generated/time-pilot-clouds.h"
 #ifndef FLIGHT_DIRECTIONS_HEADER
 #define FLIGHT_DIRECTIONS_HEADER "generated/directions.h"
@@ -61,7 +62,7 @@
 #define CLOUD_DATA_ADDRESS           0x1880
 #define CLOUD_DATA(frame) ((unsigned char *)(CLOUD_DATA_ADDRESS + (unsigned int)(frame) * 128))
 #define PLANE_DATA ((unsigned char *)PLANE_DATA_ADDRESS)
-#define RESIDENT_CLOUD_FRAMES 1
+#define RESIDENT_CLOUD_FRAMES CLOUD_FRAME_COUNT
 
 #define SLOT_COUNT 8
 #define FIRST_CLOUD_SLOT 1
@@ -72,11 +73,9 @@
 #define RESTORE_RASTER_LINE 260
 #ifdef TIMEPILOT_OBJECT_MODEL
 #include "../timepilot/timepilot_layout.h"
-#define LARGE_CLOUD_MASK 0x1E
-#define LARGE_CLOUD_LAST_SLOT 4
+#define FAST_CLOUD_LAST_SLOT 5
 #else
-#define LARGE_CLOUD_MASK 0x0E
-#define LARGE_CLOUD_LAST_SLOT 3
+#define FAST_CLOUD_LAST_SLOT 5
 #endif
 #define RASTER_SAFETY_LINES 12
 #define DEBUG_COLOR_BASE 0xF0
@@ -130,10 +129,16 @@ static struct Cloud clouds[SLOT_COUNT];
 static struct CloudPair cloud_pairs[SLOT_COUNT];
 
 static const unsigned int initial_x[SLOT_COUNT] = {
-    20, 92, 174, 250, 45, 130, 214, 300
+    20,
+    92, 108, 124, /* $60,$68,$61: original three-part cloud. */
+    214, 230,     /* $60,$61: original two-part cloud. */
+    284, 300      /* $62,$63: original two-part cloud. */
 };
 static const unsigned char initial_y[SLOT_COUNT] = {
-    24, 58, 88, 34, 72, 18, 102, 50
+    24,
+    58, 58, 58,
+    88, 88,
+    34, 34
 };
 
 /* Clockwise, beginning at east. Values use three fractional bits. */
@@ -287,6 +292,7 @@ static void initialise_cloud_sprites(void)
     unsigned int pointer_table_address;
     unsigned int address;
     unsigned char slot;
+    unsigned char frame;
 
     /* KNOWN-GOOD POINTER PATH
 
@@ -296,8 +302,8 @@ static void initialise_cloud_sprites(void)
        were linked and copied correctly. Multiplexing only rewrites X/Y and
        never needs to change these graphic pointers.
 
-       In Time Pilot the runtime plane occupies $1800-$187f and one shared
-       cloud image uses $1880-$18ff. These buffers are below the PRG and above
+       In Time Pilot the runtime plane occupies $1800-$187f and seven original
+       cloud images use $1880-$1bff. These buffers are below the PRG and above
        the complete FCM screen, so growing C/BSS cannot collide with them.
        The 17 immutable direction sources are linked separately
        at $5000 in FLIGHTDATA; changing direction copies one source frame into
@@ -335,16 +341,17 @@ static void initialise_cloud_sprites(void)
 #endif
 
     for (slot = FIRST_CLOUD_SLOT; slot < SLOT_COUNT; ++slot) {
+        frame = slot - FIRST_CLOUD_SLOT;
         address = CLOUD_DATA_ADDRESS +
-                  (unsigned int)(slot & (RESIDENT_CLOUD_FRAMES - 1)) * 128;
+                  (unsigned int)frame * CLOUD_FRAME_SIZE;
         pointer_table[slot] = address / 64;
-        memcpy(CLOUD_DATA(slot & (RESIDENT_CLOUD_FRAMES - 1)),
-               cloud_frames[slot & (RESIDENT_CLOUD_FRAMES - 1)],
+        memcpy(CLOUD_DATA(frame),
+               cloud_frames[frame],
                CLOUD_FRAME_SIZE);
         SPRITE_COLOR[slot] = 0;
         clouds[slot].x = (long)initial_x[slot] << CLOUD_FIXED_SHIFT;
         clouds[slot].y = (long)initial_y[slot] << CLOUD_FIXED_SHIFT;
-        clouds[slot].speed = slot <= LARGE_CLOUD_LAST_SLOT ? 24 : 8;
+        clouds[slot].speed = slot <= FAST_CLOUD_LAST_SLOT ? 24 : 8;
     }
 
     SPRITE_HEIGHT = 16;
@@ -360,8 +367,10 @@ static void initialise_cloud_sprites(void)
 #else
     SPRITE_PRIORITY = 0x00;
 #endif
-    SPRITE_X_EXPAND = (SPRITE_X_EXPAND & 0x00) | LARGE_CLOUD_MASK;
-    SPRITE_Y_EXPAND = (SPRITE_Y_EXPAND & 0x00) | LARGE_CLOUD_MASK;
+    /* Original Time Pilot sprites are all fixed 16x16 pixels. Apparent cloud
+       size and depth come from distinct ROM artwork and motion, never zoom. */
+    SPRITE_X_EXPAND = 0x00;
+    SPRITE_Y_EXPAND = 0x00;
     SPRITE_ENABLE = 0xFF;
 }
 
@@ -389,7 +398,7 @@ static void calculate_cloud_pair(unsigned char slot)
     struct CloudPair *pair = &cloud_pairs[slot];
 #ifdef TIMEPILOT_OBJECT_MODEL
     struct TpCloudRender render;
-    unsigned char height = slot <= LARGE_CLOUD_LAST_SLOT ? 32 : 16;
+    unsigned char height = 16;
 
     tp_project_cloud(slot, height, RASTER_SAFETY_LINES, &render);
     pair->first_x = render.first_x;
@@ -402,7 +411,7 @@ static void calculate_cloud_pair(unsigned char slot)
     unsigned int second_x = (first_x + 128) & 0x01FF;
     unsigned char first_y = (unsigned char)(clouds[slot].y >> CLOUD_FIXED_SHIFT);
     unsigned char second_y = first_y + 128;
-    unsigned char height = slot <= LARGE_CLOUD_LAST_SLOT ? 32 : 16;
+    unsigned char height = 16;
 
     /* Whichever member of the diagonal pair is currently higher is drawn
        first. Crossing a 128-pixel band only swaps these two roles. */

@@ -1,6 +1,7 @@
 SOURCE := ../assets/time-pilot-v2.png
 NORMALIZED_MAP := generated/time-pilot-tiles.png
 CLOUD_HEADER := generated/time-pilot-clouds.h
+PARACHUTIST_HEADER := generated/time-pilot-parachutists.h
 FONT_BIN := generated/time-pilot-font.bin
 FONT_PREVIEW := generated/time-pilot-font.png
 FONT_HEADER := generated/time-pilot-font.h
@@ -13,14 +14,19 @@ SPRITE_STAMP := generated/.time-pilot-sprites.stamp
 
 .PHONY: all clean
 
-all: $(NORMALIZED_MAP) $(CLOUD_HEADER) $(FONT_PALETTE_STAMP) $(SPRITE_STAMP)
+all: $(NORMALIZED_MAP) $(CLOUD_HEADER) $(PARACHUTIST_HEADER) $(FONT_PALETTE_STAMP) $(SPRITE_STAMP)
 
 $(NORMALIZED_MAP): $(SOURCE) ../tools/normalize_tilemap.py ../tools/png_tile.py
 	@mkdir -p generated
 	python3 ../tools/normalize_tilemap.py $< $@ --scale 4 --color-key 255,0,255
 
-$(CLOUD_HEADER): $(NORMALIZED_MAP) ../tools/time_pilot_clouds.py ../tools/png_tile.py
-	python3 ../tools/time_pilot_clouds.py $< $@
+$(CLOUD_HEADER): ../assets/timeplt/tm4 ../assets/timeplt/tm5 \
+		../tools/time_pilot_clouds.py ../tools/extract_timepilot_sprites.py
+	python3 ../tools/time_pilot_clouds.py ../assets/timeplt $@
+
+$(PARACHUTIST_HEADER): ../assets/timeplt/tm4 ../assets/timeplt/tm5 \
+		../tools/time_pilot_parachutists.py ../tools/extract_timepilot_sprites.py
+	python3 ../tools/time_pilot_parachutists.py ../assets/timeplt $@
 
 $(FONT_PALETTE_STAMP): \
 		../assets/timeplt/tm6 ../assets/timeplt/timeplt.b4 \
@@ -38,7 +44,7 @@ $(SPRITE_STAMP): \
 	@touch $@
 
 clean:
-	$(RM) $(NORMALIZED_MAP) $(CLOUD_HEADER) $(FONT_BIN) $(FONT_PREVIEW) $(FONT_HEADER)
+	$(RM) $(NORMALIZED_MAP) $(CLOUD_HEADER) $(PARACHUTIST_HEADER) $(FONT_BIN) $(FONT_PREVIEW) $(FONT_HEADER)
 	$(RM) $(SPRITE_BIN) $(SPRITE_PREVIEW) $(SPRITE_HEADER)
 	$(RM) $(SPRITE_STAMP)
 	$(RM) -r $(FONT_PALETTE_DIR)

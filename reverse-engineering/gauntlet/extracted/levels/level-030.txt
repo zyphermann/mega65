@@ -1,0 +1,81 @@
+ATARI GAUNTLET ASCII LEVEL MAP
+KIND: normal level 030
+ROM_RECORD_ID: 29
+SLAPSTIC_BANK: 1
+CPU_POINTER: 0x038000
+HEADER_00_0D: 63 6C 65 07 0D 07 1A 00 84 97 11 0B 17 68
+COMPRESSED_BYTES: 384
+GRID: 32 x 32 logical metatiles; one metatile is 16 x 16 pixels
+CELL: two ASCII characters
+
+LEGEND
+  .. = type 00: empty/floor
+  ## = type 01: solid wall or loader-created top border
+  03 = type 03: horizontal unlockable wall
+  04 = type 04: vertical unlockable wall
+  05 = type 05: loader marker (not retained in the final type grid)
+  06 = type 06: game terrain/object type
+  0B = type 0B: bone generator variant
+  0C = type 0C: enemy generator variant
+  0E = type 0E: enemy generator variant
+  11 = type 11: enemy generator variant
+  13 = type 13: enemy generator variant
+  14 = type 14: enemy generator variant
+  17 = type 17: enemy generator variant
+  18 = type 18: game terrain/object type
+  1A = type 1A: monster/bone entity variant
+  1B = type 1B: monster/bone entity variant
+  1C = type 1C: monster/bone entity variant
+  1D = type 1D: monster/bone entity variant
+  1E = type 1E: monster/bone entity variant
+  20 = type 20: monster/bone entity variant
+  21 = type 21: monster/bone entity variant
+  22 = type 22: monster/bone entity variant
+  24 = type 24: monster/bone entity variant
+  26 = type 26: monster/bone entity variant
+  27 = type 27: monster/bone entity variant
+  28 = type 28: treasure chest
+  2A = type 2A: game terrain/object type
+  2B = type 2B: random food
+  2C = type 2C: game terrain/object type
+  35 = type 35: key
+
+MAP
+     0001020304050607080910111213141516171819202122232425262728293031
+00 | ################################################################
+01 | ##1111..........21..35..28............................04......26
+02 | ##2111########################################......####28......
+03 | ##1111..........1E......28......1D..0E0E....1D##03##2A..####....
+04 | ##....############################2B180E....1D##..##......1A##..
+05 | ##..............27......28..04352C############......######0B##28
+06 | ##0B##############################28......04111111....350B0B##35
+07 | ##1A##....................##..............##111120....########..
+08 | ##0B##............##35##......##..2835..1C##111111..##18........
+09 | ##03##..........##26##26####################......##11111111##..
+10 | ##0B##............##18####..28..........1C##....##1111112035##..
+11 | ##0B##........##........##..############..##..##..11111111####..
+12 | ##0B##..........######21##1B..........##..##......##....##..##..
+13 | ##1A####..........111111############1B##..##......##28##28..##..
+14 | ##28##..##........111121##............##..##......####....####..
+15 | ##2A##..13##......1111##112B############..##..####......##28##03
+16 | ####################2111##........05..##..##..##....28##....##28
+17 | ##1828..........2806##1111####......35##..##03##....##........28
+18 | ##2A............2828##......############0C##0E0E..##......######
+19 | ##................1A##............0C0C0C1C##0E0E##....##17##282A
+20 | ##....1A............######################0E0E##......##17##1B1B
+21 | ##..............1A##1E0E0E0E0B0B0B0B0B0B1C##22######..##17##1B1B
+22 | ##............1D##0E0E0E03030303030303030E####..28....##17##1B1B
+23 | ##..........20##........041B1B1B1B1B1B04350E..##28....##17##0B0B
+24 | ##22......26##..........0303030303030303####....##2C..##17##0B0B
+25 | ##......####....................26..........##....##..##17##0B0B
+26 | ##....####27##############################..26##......##17##0B0B
+27 | ##..28##171727##242A##212A##1E2A##1B2A##28##....##....##18##0B0B
+28 | ##..##28171717##1814##1811##180E##180B##2828##....##..######0B0B
+29 | ##..28##171717##1414##1111##0E0E##0B0B##28##1B##....##0B0B0B0B0B
+30 | ##......##28######28####28####28####28##......1B##..............
+31 | ##1B............................................................
+
+NOTES
+  The map is the deterministic output of the ROM decoder plus its top border.
+  Runtime object setup can replace markers and open individual border cells.
+  Unknown type names remain numeric so this file does not invent semantics.

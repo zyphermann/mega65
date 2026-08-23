@@ -137,6 +137,45 @@ simulierten Flugvektor durch 32 Richtungen:
 make run PROGRAM=cloud_multiplex_demo
 ```
 
+## Generischer Sprite-Multiplexer
+
+`sprite_multiplexer_demo` füllt eine Liste mit logischen 16×16-Sprites und
+erstellt daraus vor jedem Bild eine sortierte Raster-Rewrite-Liste für die acht
+Hardware-Slots. Der IRQ sortiert nicht selbst, sondern arbeitet ausschließlich
+den fertigen, doppelt gepufferten Plan ab. Das Stress-Demo bewegt 36
+Time-Pilot-Wolkenformationen in drei Ebenen; zusammengesetzte Wolken erzeugen
+insgesamt 72 logische Sprite-Komponenten. `D` zeigt die IRQ-Aktivität am Rahmen.
+
+```sh
+make run PROGRAM=sprite_multiplexer_demo
+```
+
+## Horizontaler Sprite-Multiplexer
+
+`horizontal_sprite_multiplexer_demo` testet den VIC-IV-Sprite-Ringbuffer über
+den Hardware-Tilemodus `SPRTILEN`. Ein einziger 16×16-Hardware-Sprite wird ab
+seiner X-Position bis zum rechten Rand wiederholt. Links/Rechts verschiebt den
+Startpunkt, `D` schaltet die Wiederholung zum direkten Vergleich ein und aus.
+Freie CPU-Rewrites innerhalb einer Rasterzeile sind auf echter Hardware
+möglich, werden von Xemu aber nicht cycle-genau dargestellt.
+
+```sh
+make run PROGRAM=horizontal_sprite_multiplexer_demo
+```
+
+## Tilemap-Scroll-Demo
+
+`tilemap_scroll_demo` zeigt eine logische 80×50-Tilemap, also 2×2 sichtbare
+40×25-Seiten. Gespiegelte Randbereiche machen jeden Wrap-Ausschnitt im
+physischen VIC-Speicher zusammenhaengend. `SCRNPTR`/`COLPTR` waehlen den
+ganzteiligen Ausschnitt und `TEXTXPOS`/`TEXTYPOS` den Pixelversatz. Beim
+Scrollen werden weder die Map kopiert noch RRB-Listen erzeugt. Mit `Space`
+wird zwischen Wrap und Clamp umgeschaltet.
+
+```sh
+make run PROGRAM=tilemap_scroll_demo
+```
+
 ## In Xemu ausführen
 
 1. Den aktuellen Xemu-Build für macOS von <https://github.lgb.hu/xemu/>

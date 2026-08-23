@@ -7,6 +7,10 @@ SCORE_GENERATED := $(GENERATED_DIR)/score.bin $(GENERATED_DIR)/shot_table.bin \
 EXTRA_DEPS := $(GENERATED_HEADER) $(SCORE_GENERATED) ../../shared/generated/time-pilot-clouds.h linker.cfg
 CLEAN_FILES := $(wildcard $(GENERATED_DIR)/*.h) $(GENERATED_HEADER) $(SCORE_GENERATED)
 EXTRA_FLAGS := -C linker.cfg
+# This program's OBJECT linker area is deliberately tight. Aggressive cc65
+# inlining currently grows it beyond the fixed region; retain compact release
+# optimisation until that layout is reorganised.
+RELEASE_FLAGS := -O
 
 $(GENERATED_HEADER): ../../shared/generated/time-pilot-tiles.png ../../tools/png_tile.py ../../tools/time_pilot_flight.py
 	@mkdir -p $(GENERATED_DIR)

@@ -14,9 +14,12 @@ Basispositionen installiert, bevor derselbe neue Buffer für seine Rewrites
 aktiv wird, ohne den Frontbuffer mitten in der IRQ-Gruppe umzuschalten.
 
 
-Die ersten drei Slots sind skalierte Vordergrundwolken und bewegen sich
-schneller; die übrigen fünf kleinen Wolken bilden die langsamere Hintergrund-
-ebene.
+Die sieben Wolkenslots verwenden originale 16×16-Sprites aus `tm4`/`tm5`
+(erste Z80-Tabelle bei `$3176`). Sie bilden eine dreiteilige und zwei
+zweiteilige Wolken entsprechend den Positionsroutinen `$2CBC/$3058`; nur die
+achte, alleinstehende Originalwolke entfällt zugunsten des Spieler-Slots. Kein
+Sprite wird skaliert. Die ersten Gruppen bewegen sich schneller und bilden so
+die Vordergrundebene, die letzte Gruppe die langsamere Hintergrundebene.
 
 Links und Rechts drehen einen unsichtbaren Flugvektor durch 32 Richtungen. Die
 Wolken bewegen sich entgegengesetzt dazu. Beim vertikalen Überschreiten einer

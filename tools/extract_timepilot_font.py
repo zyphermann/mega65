@@ -19,6 +19,14 @@ SOURCE_BYTES_PER_TILE = 16
 OUTPUT_BYTES_PER_TILE = 32  # MEGA65 4-bpp: two pixels per byte.
 DIGIT_TILE_CODES = (0x13, 0x96, 0x9B, 0xCD, 0xF3, 0x7F, 0x65, 0x02, 0x17, 0x5D)
 HI_SCORE_TILE_CODES = (0xC4, 0xFD, 0x10, 0xED, 0x77, 0x68, 0xD7, 0x34)
+# Compact glyph order used by the MEGA65 diagnostics:
+# 0-9, A D E F I L M O P R S X / T Y.
+# Digits and HI-SCORE letters come from the confirmed Z80 tables. The
+# remaining upright glyphs were identified directly in the decoded tm6 sheet.
+DEMO_TILE_CODES = DIGIT_TILE_CODES + (
+    0x74, 0x87, 0x34, 0x00, 0xFD, 0xC5, 0xF7, 0x68,
+    0x80, 0xD7, 0xED, 0x1F, 0x94, 0xDC, 0x89,
+)
 
 
 def decode_tile(rom, tile_index):
@@ -141,6 +149,7 @@ def write_header(path, tiles):
 #define TIME_PILOT_FONT_DATA_SIZE {TILE_COUNT * OUTPUT_BYTES_PER_TILE}
 #define TIME_PILOT_HI_SCORE_LENGTH {len(HI_SCORE_TILE_CODES)}
 
+#ifdef TIME_PILOT_FONT_INCLUDE_HUD
 /* Confirmed from the Z80 BCD renderer's lookup table at ROM $0dcc. */
 static const unsigned char time_pilot_digit_tile_codes[10] = {{"""]
     lines += format_c_bytes(DIGIT_TILE_CODES)
@@ -153,7 +162,16 @@ static const unsigned char time_pilot_digit_tile_codes[10] = {{"""]
         lines.append("    {")
         lines += format_c_bytes(pack_mega65_4bpp(tiles[code]), "        ")
         lines.append("    },")
-    lines += ["};", "", "#endif", ""]
+    lines += ["};", "#endif", "", "#ifdef TIME_PILOT_FONT_INCLUDE_DEMO",
+              "/* Compact original tm6 glyph set used by demos. */",
+              f"#define TIME_PILOT_DEMO_GLYPH_COUNT {len(DEMO_TILE_CODES)}",
+              "static const unsigned char time_pilot_demo_glyphs"
+              f"[{len(DEMO_TILE_CODES)}][32] = {{"]
+    for code in DEMO_TILE_CODES:
+        lines.append("    {")
+        lines += format_c_bytes(pack_mega65_4bpp(tiles[code]), "        ")
+        lines.append("    },")
+    lines += ["};", "#endif", "", "#endif", ""]
 
     Path(path).write_text("\n".join(lines))
 
