@@ -85,14 +85,14 @@ $(PALETTE_BIN): $(ALL_ROMS) $(PALETTE_DUMPER)
 		dd if=/dev/zero of="$$tmp_dir/roms/gauntlet/136037-104.6p" \
 			bs=8192 seek=1 count=1 conv=notrunc >/dev/null 2>&1; \
 		cd $(OUTPUT_DIR); \
-		SDL_VIDEODRIVER=dummy $(MAME) gauntlet \
+		SDL_VIDEODRIVER=dummy GAUNTLET_PALETTE_FILE=palette.bin $(MAME) gauntlet \
 			-rompath "$$tmp_dir/roms" \
 			-cfg_directory "$$tmp_dir/cfg" \
 			-nvram_directory "$$tmp_dir/nvram" \
 			-snapshot_directory "$$tmp_dir/snap" \
 			-homepath "$$tmp_dir/home" \
 			-skip_gameinfo -video none -sound none \
-			-autoboot_script $(PALETTE_DUMPER) -seconds_to_run 17
+		-autoboot_script $(PALETTE_DUMPER) -seconds_to_run 17
 
 $(PALETTE_CSV): $(PALETTE_BIN) $(EXTRACTOR)
 	$(PYTHON) $(EXTRACTOR) --output $(OUTPUT_DIR) \

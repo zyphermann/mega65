@@ -1,7 +1,9 @@
 #ifndef PIXIE_RENDERER_H
 #define PIXIE_RENDERER_H
 
+#ifndef PIXIE_RENDER_ROWS
 #define PIXIE_RENDER_ROWS          25
+#endif
 #define PIXIE_RENDER_ENTRIES       80
 #define PIXIE_RENDER_ROW_BYTES     (PIXIE_RENDER_ENTRIES * 2)
 #define PIXIE_RENDER_VIEW_WIDTH    320
@@ -32,6 +34,17 @@ typedef struct PixieBackground {
 void pixie_renderer_begin(unsigned char *screen, unsigned char *color,
                           const PixieBackground *layers,
                           unsigned char layer_count);
+void pixie_renderer_begin_cached(unsigned char *screen, unsigned char *color,
+                                 unsigned char preserved_entries);
+void pixie_renderer_prepare_cached_tilemap(unsigned char columns,
+                                           unsigned char palette_bank,
+                                           unsigned char fine_x,
+                                           unsigned char initialize_colors);
+/* Replace one character in the cached tilemap prefix of the currently
+   selected build buffer.  Column zero is the first tile after its GOTOX. */
+void pixie_renderer_patch_cached_tile(unsigned char column,
+                                      unsigned char row,
+                                      unsigned int character);
 unsigned char pixie_renderer_draw(const PixieObject *objects,
                                   unsigned char object_count,
                                   unsigned char reserved_top_rows,

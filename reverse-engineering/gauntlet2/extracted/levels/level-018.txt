@@ -1,0 +1,79 @@
+ATARI GAUNTLET II ASCII LEVEL MAP
+KIND: level record 018
+ROM_RECORD_ID: 17
+SLAPSTIC_BANK: 0
+CPU_POINTER: 0x039011
+HEADER_00_0D: 04 00 00 03 20 33 2F 60 9A 0E AE
+COMPRESSED_BYTES: 179
+GRID: 32 x 32 logical metatiles; one metatile is 16 x 16 pixels
+CELL: two ASCII characters
+
+LEGEND
+  .. = type 00: empty/floor
+  ## = type 02: solid wall or loader-created top border
+  04 = type 04: solid wall variant
+  07 = type 07: solid wall variant
+  0A = type 0A: Gauntlet II runtime/control type
+  0E = type 0E: vertical unlockable gate
+  0F = type 0F: warrior start
+  10 = type 10: normal exit
+  15 = type 15: large enemy/entity
+  18 = type 18: Gauntlet II runtime/control type
+  1A = type 1A: Gauntlet II runtime/control type
+  1C = type 1C: small item/entity
+  1D = type 1D: monster/bone entity
+  1F = type 1F: generator variant
+  20 = type 20: generator variant
+  21 = type 21: generator variant
+  22 = type 22: generator/entity variant
+  23 = type 23: Gauntlet II runtime/control type
+  29 = type 29: Gauntlet II runtime/control type
+  2E = type 2E: treasure chest
+  31 = type 31: food
+  33 = type 33: Gauntlet II runtime/control type
+  35 = type 35: key
+  38 = type 38: Gauntlet II runtime/control type
+  39 = type 39: Gauntlet II runtime/control type
+  3C = type 3C: Gauntlet II runtime/control type
+  3E = type 3E: Gauntlet II runtime/control type
+  3F = type 3F: red wall insert
+
+MAP
+     0001020304050607080910111213141516171819202122232425262728293031
+00 | ################################################################
+01 | ........0E....2E##10..........3F3F............##310A0A0A1A......
+02 | ........0E......##39............................##########......
+03 | ........0E........########3C..............................####20
+04 | ####20180E........04##04######3F3F............................##
+05 | ....######....................##################................
+06 | ........2E######................................####............
+07 | ................######..............................##..........
+08 | ......................########..21....................######....
+09 | 15............................##########1A..................####
+10 | ##......................................######29..............20
+11 | 20##############..............................############1A....
+12 | ............1F##############..20..........................##....
+13 | ..................2E....20##############....................####
+14 | ########..............................20##########..............
+15 | ......22####......................................######........
+16 | ..........22############................................######..
+17 | ##......................##............20....................20##
+18 | ..##......................############################..........
+19 | ..20####..........20..................................##........
+20 | ........############....................................####....
+21 | ..................1F##################2E......2020..........####
+22 | ####1A..........................0F....############..............
+23 | ....##2E........................................1F######151A....
+24 | ......########################........................23##......
+25 | ..............15..............####38##..................23######
+26 | ####..............................##3E############..............
+27 | ..29####################......1D..070707........####............
+28 | ....................1C1D######....................##3E########..
+29 | ..............................##########..........######2E....##
+30 | ##########............................33######..................
+31 | 31##35........1D........................183E##..........1D......
+
+NOTES
+  The map is the deterministic output of the ROM decoder plus its top border.
+  Runtime object setup can replace markers and open individual border cells.
+  Unknown type names remain numeric so this file does not invent semantics.

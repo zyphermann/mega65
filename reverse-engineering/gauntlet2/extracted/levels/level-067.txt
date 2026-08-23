@@ -1,0 +1,88 @@
+ATARI GAUNTLET II ASCII LEVEL MAP
+KIND: level record 067
+ROM_RECORD_ID: 66
+SLAPSTIC_BANK: 2
+CPU_POINTER: 0x038382
+HEADER_00_0D: 0D 00 00 00 06 74 D5 45 69 07 6E
+COMPRESSED_BYTES: 333
+GRID: 32 x 32 logical metatiles; one metatile is 16 x 16 pixels
+CELL: two ASCII characters
+
+LEGEND
+  .. = type 00: empty/floor
+  ## = type 02: solid wall or loader-created top border
+  04 = type 04: solid wall variant
+  05 = type 05: loader marker (not retained in the final type grid)
+  07 = type 07: solid wall variant
+  08 = type 08: solid wall variant
+  09 = type 09: solid wall variant
+  0A = type 0A: Gauntlet II runtime/control type
+  0B = type 0B: Gauntlet II runtime/control type
+  0C = type 0C: Gauntlet II runtime/control type
+  0D = type 0D: horizontal unlockable gate
+  0E = type 0E: vertical unlockable gate
+  0F = type 0F: warrior start
+  10 = type 10: normal exit
+  15 = type 15: large enemy/entity
+  18 = type 18: Gauntlet II runtime/control type
+  1C = type 1C: small item/entity
+  1D = type 1D: monster/bone entity
+  1E = type 1E: bone pile
+  1F = type 1F: generator variant
+  20 = type 20: generator variant
+  21 = type 21: generator variant
+  22 = type 22: generator/entity variant
+  24 = type 24: generator variant
+  27 = type 27: Gauntlet II runtime/control type
+  29 = type 29: Gauntlet II runtime/control type
+  2E = type 2E: treasure chest
+  2F = type 2F: level object
+  31 = type 31: food
+  32 = type 32: potion
+  33 = type 33: Gauntlet II runtime/control type
+  34 = type 34: Gauntlet II runtime/control type
+  35 = type 35: key
+  36 = type 36: Gauntlet II runtime/control type
+  38 = type 38: Gauntlet II runtime/control type
+  3A = type 3A: Gauntlet II runtime/control type
+  3E = type 3E: Gauntlet II runtime/control type
+
+MAP
+     0001020304050607080910111213141516171819202122232425262728293031
+00 | ################################################################
+01 | ##0F..........05..............20............1E........29......29
+02 | ##............05........................1E..31..................
+03 | ##..........1C05..............20............1E..........29....18
+04 | ############################################################....
+05 | ##..........0C......0B......0B22......................360C....0C
+06 | ##..........0C..27..0B......0B22......................33..2E0C35
+07 | ##05050909090909090909090909090909090909090909090909090909090909
+08 | ##..##33........##........##22##1C..1C..1C..1C..1C..1C..1C..1C..
+09 | ##..##..........##1D......08##1C##0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D
+10 | ##..##....##......##........08##1F##08..........................
+11 | ##..##....##....0E............08##1C##......2E......2F......2E..
+12 | ##3A0E....##21350E............3508##18....2E182E..2E182E..2E182E
+13 | ##########################0808##....##......36......1F......31..
+14 | ##................0E29..##....##1D31..##........................
+15 | ####..##..##..##210E....##....##########################3E######
+16 | ##1D##..05..##..05##....##....##3E18180B08......2908............
+17 | ####1D05..05..##..##....##383E##........0831......08............
+18 | ##..05..##..05..05##....##################################......
+19 | ##05..##..##..0515##....##31..........................29##......
+20 | ##..##..##..05..05##....##........................29....##......
+21 | ##05..04..##..##..##2E##0505########################....##24..29
+22 | ##..##..04..05..05##..##....072F2E2E2E2E2E2E2E2E35##....##......
+23 | ##05..##..##..##15##..##....07..0707070707070707..##....##......
+24 | ##..05..##..05..05##..##....07..07............07..##....##......
+25 | ##051E05..##..##..##..##....07..070707070707..07..##29..##......
+26 | ##1E051E##..05..05##..##....07..0731..183E07..07..##....##......
+27 | ##05..051E##1E##15##..##....07..073418..1807..07..##..29##......
+28 | ##1E051E##1E051E05##..##....07..07070707073E..07..##....##......
+29 | ####..051E##1E##..##..##....07................070A##29..##......
+30 | ##10051E##..051E05##..##....0707070707070707070735##......2E....
+31 | ##321005..##..0515##..052E........................##......2E....
+
+NOTES
+  The map is the deterministic output of the ROM decoder plus its top border.
+  Runtime object setup can replace markers and open individual border cells.
+  Unknown type names remain numeric so this file does not invent semantics.

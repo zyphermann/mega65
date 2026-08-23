@@ -1,8 +1,9 @@
 PROGRAM := pixie_renderer_demo
-SOURCES := main.c ../../shared/pixie_renderer/pixie_renderer.c
+SOURCES := main.c ../../shared/pixie_renderer/pixie_renderer.c \
+           ../../shared/tilebuffer/tilebuffer.c
 EXTRA_DEPS := ../../shared/generated/time-pilot-parachutists.h \
 	../../shared/generated/time-pilot-font.h linker.cfg
-EXTRA_FLAGS := -C linker.cfg
+EXTRA_FLAGS := -C linker.cfg -DPIXIE_RENDER_ROWS=26
 RELEASE_FLAGS := -O
 
 include ../../mk/program.mk

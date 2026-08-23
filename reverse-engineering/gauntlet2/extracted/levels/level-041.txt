@@ -1,0 +1,82 @@
+ATARI GAUNTLET II ASCII LEVEL MAP
+KIND: level record 041
+ROM_RECORD_ID: 40
+SLAPSTIC_BANK: 1
+CPU_POINTER: 0x038706
+HEADER_00_0D: 0A 00 00 80 20 02 F3 0D 05 0E 9F
+COMPRESSED_BYTES: 283
+GRID: 32 x 32 logical metatiles; one metatile is 16 x 16 pixels
+CELL: two ASCII characters
+
+LEGEND
+  .. = type 00: empty/floor
+  ## = type 02: solid wall or loader-created top border
+  01 = type 01: alternate floor palette
+  03 = type 03: Gauntlet II runtime/control type
+  05 = type 05: loader marker (not retained in the final type grid)
+  0D = type 0D: horizontal unlockable gate
+  0E = type 0E: vertical unlockable gate
+  0F = type 0F: warrior start
+  10 = type 10: normal exit
+  12 = type 12: Gauntlet II runtime/control type
+  15 = type 15: large enemy/entity
+  18 = type 18: Gauntlet II runtime/control type
+  1C = type 1C: small item/entity
+  1D = type 1D: monster/bone entity
+  1E = type 1E: bone pile
+  1F = type 1F: generator variant
+  20 = type 20: generator variant
+  21 = type 21: generator variant
+  22 = type 22: generator/entity variant
+  23 = type 23: Gauntlet II runtime/control type
+  25 = type 25: Gauntlet II runtime/control type
+  26 = type 26: Gauntlet II runtime/control type
+  27 = type 27: Gauntlet II runtime/control type
+  28 = type 28: Gauntlet II runtime/control type
+  29 = type 29: Gauntlet II runtime/control type
+  2E = type 2E: treasure chest
+  2F = type 2F: level object
+  31 = type 31: food
+  32 = type 32: potion
+  34 = type 34: Gauntlet II runtime/control type
+  35 = type 35: key
+
+MAP
+     0001020304050607080910111213141516171819202122232425262728293031
+00 | ################################################################
+01 | 10......0E....##..................2F10....23..............0E22##
+02 | ........0E....##......########################..........0D0D..##
+03 | ........0E............##26....................29....0D0D0D....##
+04 | 1D..1D..##............####################..29......05........##
+05 | ........##....##......................0505........05....0303..##
+06 | ........##....######..........3121....0505......05......0303..##
+07 | ........##........2E##................05050505051F............##
+08 | 0D0D0D0D##..........##..############0505052E2E051F............##
+09 | ......2E##..........##..##22................2E051F............##
+10 | ......######........##05##..10..............############0D0D####
+11 | ........2E##........##05##22................##..............35##
+12 | 34........##18....350505########............##..............####
+13 | ####0D0D##############......31##........18..##0D##..##31##..1D..
+14 | ##..................##......##############31##..##..######......
+15 | ##........2822......##....20##26....26..######..##..............
+16 | ##........1F32##....##0D######................1F##..0E0D0E......
+17 | ##..........##......##1C##....##0505##..........##..0E1E0E..##..
+18 | ##..................##........##0505##..1D##....##..0E..0E..##..
+19 | ##35................##..##....0E35350E..##......##..0E..0E......
+20 | ##########....................##2828##..........##..0E..0E......
+21 | ##313535##1212##..0E########..##....##......1F..##350E..0E......
+22 | ##....1C##1212##..0E31..34##..##....##..1F..##..##..0E..0E..3525
+23 | ##......##1212##..0E....1F##..##....##..##......##..0E..0E0D0D0D
+24 | ##....####0D0D##..0E......##..##0D0D##..........##..0E..0E23..23
+25 | ##....####....##..0E....1F##..##35..##..........0E..0E1E0E......
+26 | ##0101####....##..0E......##..##....##..........0E..0E..0E......
+27 | ##....##27....##..0E....1F##..##....##..........0E..0E..0E......
+28 | ##....##......##........####..##....##..........##..0E..0E......
+29 | ##....##2F....##..........3515##....##352E2E2E2E##..##..##......
+30 | ##0101##########################....##############0D0D0D0D0D0D0D
+31 | ##................22............0F....................1212121235
+
+NOTES
+  The map is the deterministic output of the ROM decoder plus its top border.
+  Runtime object setup can replace markers and open individual border cells.
+  Unknown type names remain numeric so this file does not invent semantics.

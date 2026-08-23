@@ -176,6 +176,18 @@ wird zwischen Wrap und Clamp umgeschaltet.
 make run PROGRAM=tilemap_scroll_demo
 ```
 
+## Pixie-Renderer-Demo
+
+`pixie_renderer_demo` verwendet dieselbe logische 80×50-Welt in eigenen
+doppelt gepufferten RRB-Zeilen. Ein gecachter Praefix zeichnet 41
+Hintergrund-Tiles; danach folgen echte `GOTOX`-/NCM-Pixies. Hardware-Sprites
+bleiben abgeschaltet. Pfeiltasten scrollen, `Space` schaltet Wrap/Clamp und
+`+`/`-` veraendern die Anzahl der Fallschirmspringer zwischen 1 und 128.
+
+```sh
+make run PROGRAM=pixie_renderer_demo
+```
+
 ## In Xemu ausführen
 
 1. Den aktuellen Xemu-Build für macOS von <https://github.lgb.hu/xemu/>

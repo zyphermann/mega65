@@ -21,6 +21,31 @@ DIAGNOSTIC_4BPP = [
     (41, 173, 255), (131, 118, 156), (255, 119, 168), (255, 204, 170),
 ]
 
+GAME_ROMS = {
+    "gauntlet": {
+        "char": "136037-104.6p",
+        "graphics": (
+            ("136037-111.1a", False), ("136037-112.1b", False),
+            ("136037-113.1l", False), ("136037-114.1mn", False),
+            ("136037-115.2a", False), ("136037-116.2b", False),
+            ("136037-117.2l", False), ("136037-118.2mn", False),
+        ),
+    },
+    "gaunt2": {
+        "char": "136043-1104.6p",
+        # The four 16 KiB ROMs drive a complete 32 KiB plane by mirroring.
+        # This is MAME's ROM_RELOAD layout and the wiring found on the PCB.
+        "graphics": (
+            ("136043-1111.1a", False), ("136037-112.1b", False),
+            ("136043-1123.1c", True), ("136043-1113.1l", False),
+            ("136037-114.1mn", False), ("136043-1124.1p", True),
+            ("136043-1115.2a", False), ("136037-116.2b", False),
+            ("136043-1125.2c", True), ("136043-1117.2l", False),
+            ("136037-118.2mn", False), ("136043-1126.2p", True),
+        ),
+    },
+}
+
 
 def png(path: Path, width: int, height: int, pixels: bytes, palette: list[tuple[int, int, int]]) -> None:
     def chunk(kind: bytes, data: bytes) -> bytes:
@@ -68,7 +93,8 @@ def chars(data: bytes) -> list[bytes]:
 
 def spr_tiles(region: bytes) -> list[bytes]:
     # MAME gfx_8x8x4_planar: four equal plane quarters, 8 bytes/tile/plane.
-    assert len(region) == 0x40000
+    if len(region) not in (0x40000, 0x60000):
+        raise ValueError(f"graphics region must be 0x40000 or 0x60000 bytes, got {len(region):#x}")
     plane_size = len(region) // 4
     result = []
     for number in range(plane_size // 8):
@@ -92,7 +118,7 @@ def write_palette_csv(dump: Path, output: Path) -> None:
     if len(raw) != 0x800:
         raise ValueError(f"palette dump must contain 0x800 bytes, got {len(raw):#x}")
     with output.open("w", newline="") as stream:
-        writer = csv.writer(stream)
+        writer = csv.writer(stream, lineterminator="\n")
         writer.writerow(("index", "bank", "raw", "intensity", "red", "green", "blue"))
         banks = ("alpha", "motion_object", "playfield", "extra")
         for index in range(1024):
@@ -104,6 +130,7 @@ def write_palette_csv(dump: Path, output: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--game", choices=GAME_ROMS, default="gauntlet")
     parser.add_argument("--rom-dir", type=Path, default=Path("assets/gauntlet/romset"))
     parser.add_argument("--output", type=Path, default=Path("reverse-engineering/gauntlet/extracted"))
     parser.add_argument("--palette-dump", type=Path, help="optional 0x800-byte dump of palette RAM $910000")
@@ -119,12 +146,14 @@ def main() -> None:
         print("converted 1024 palette entries")
         return
 
-    char_tiles = chars((args.rom_dir / "136037-104.6p").read_bytes())
+    roms = GAME_ROMS[args.game]
+    char_tiles = chars((args.rom_dir / roms["char"]).read_bytes())
     # Keep the PCB/MAME load order explicit: it is part of the bitplane format.
-    graphics = b"".join((args.rom_dir / name).read_bytes() for name in (
-        "136037-111.1a", "136037-112.1b", "136037-113.1l", "136037-114.1mn",
-        "136037-115.2a", "136037-116.2b", "136037-117.2l", "136037-118.2mn",
-    ))
+    chunks = []
+    for name, reload_once in roms["graphics"]:
+        data = (args.rom_dir / name).read_bytes()
+        chunks.append(data + data if reload_once else data)
+    graphics = b"".join(chunks)
     playfield_mo_tiles = spr_tiles(graphics)
 
     for name, tiles, columns, palette in (

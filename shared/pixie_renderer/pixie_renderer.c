@@ -68,6 +68,19 @@ static void set_output(unsigned char row, unsigned char entry)
     color_out = color_base + offset;
 }
 
+static void select_output_buffer(unsigned char *screen)
+{
+    if (known_screen[0] == screen) current_buffer = 0;
+    else if (known_screen[1] == screen) current_buffer = 1;
+    else if (!known_screen[0]) {
+        known_screen[0] = screen;
+        current_buffer = 0;
+    } else {
+        known_screen[1] = screen;
+        current_buffer = 1;
+    }
+}
+
 static void prepare_background_dma(unsigned char *screen)
 {
     struct BackgroundDmaList *list = &background_dma[current_buffer];
@@ -127,15 +140,7 @@ void pixie_renderer_begin(unsigned char *screen, unsigned char *color,
         !layers[0].alternate_character_offset &&
         !layers[1].alternate_character_offset;
 
-    if (known_screen[0] == screen) current_buffer = 0;
-    else if (known_screen[1] == screen) current_buffer = 1;
-    else if (!known_screen[0]) {
-        known_screen[0] = screen;
-        current_buffer = 0;
-    } else {
-        known_screen[1] = screen;
-        current_buffer = 1;
-    }
+    select_output_buffer(screen);
 
     screen_base = screen;
     color_base = color;
@@ -233,6 +238,87 @@ void pixie_renderer_begin(unsigned char *screen, unsigned char *color,
         run_background_dma();
     background_initialized[current_buffer] = 1;
     initialized[current_buffer] = 1;
+}
+
+void pixie_renderer_begin_cached(unsigned char *screen, unsigned char *color,
+                                 unsigned char preserved_entries)
+{
+    unsigned char row;
+
+    if (preserved_entries > END_GOTO_ENTRY)
+        preserved_entries = END_GOTO_ENTRY;
+    select_output_buffer(screen);
+    screen_base = screen;
+    color_base = color;
+
+    for (row = 0; row < PIXIE_RENDER_ROWS; ++row) {
+        unsigned char entry;
+        screen_out = screen + (unsigned int)row * PIXIE_RENDER_ROW_BYTES;
+        color_out = color + (unsigned int)row * PIXIE_RENDER_ROW_BYTES;
+        if (!initialized[current_buffer]) {
+            for (entry = 0; entry < PIXIE_RENDER_ENTRIES; ++entry)
+                WRITE_ENTRY(PIXIE_RENDER_VIEW_WIDTH - 1,
+                            COLOR_GOTOX | COLOR_TRANSPARENT, 0);
+        } else if (previous_used[current_buffer][row] > preserved_entries) {
+            set_output(row, preserved_entries);
+            for (entry = preserved_entries;
+                 entry < previous_used[current_buffer][row]; ++entry)
+                WRITE_ENTRY(PIXIE_RENDER_VIEW_WIDTH - 1,
+                            COLOR_GOTOX | COLOR_TRANSPARENT, 0);
+        }
+        used[row] = preserved_entries;
+        set_output(row, preserved_entries);
+        row_screen_out[row] = screen_out;
+        row_color_out[row] = color_out;
+    }
+    initialized[current_buffer] = 1;
+}
+
+void pixie_renderer_prepare_cached_tilemap(unsigned char columns,
+                                           unsigned char palette_bank,
+                                           unsigned char fine_x,
+                                           unsigned char initialize_colors)
+{
+    unsigned char row;
+    unsigned char *row_screen = screen_base;
+    unsigned char *row_color = color_base;
+    unsigned int encoded = (unsigned int)(-(int)fine_x) & 0x03FF;
+
+    for (row = 0; row < PIXIE_RENDER_ROWS; ++row) {
+        unsigned char *screen = row_screen;
+        unsigned char *color = row_color;
+
+        screen[0] = (unsigned char)encoded;
+        screen[1] = (unsigned char)(encoded >> 8);
+        if (initialize_colors) {
+            unsigned char column;
+            color[0] = COLOR_GOTOX;
+            color[1] = 0;
+            color += 2;
+            for (column = 0; column < columns; ++column) {
+                *color++ = 0;
+                *color++ = palette_bank;
+            }
+        }
+        row_screen += PIXIE_RENDER_ROW_BYTES;
+        row_color += PIXIE_RENDER_ROW_BYTES;
+    }
+}
+
+void pixie_renderer_patch_cached_tile(unsigned char column,
+                                      unsigned char row,
+                                      unsigned int character)
+{
+    unsigned int offset;
+    unsigned char *target;
+
+    if (row >= PIXIE_RENDER_ROWS || column >= PIXIE_RENDER_ENTRIES - 1)
+        return;
+    offset = (unsigned int)row * PIXIE_RENDER_ROW_BYTES +
+             (unsigned int)(column + 1) * 2;
+    target = screen_base + offset;
+    target[0] = (unsigned char)character;
+    target[1] = (unsigned char)(character >> 8);
 }
 
 unsigned char pixie_renderer_draw(const PixieObject *objects,

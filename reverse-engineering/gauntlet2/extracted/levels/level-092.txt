@@ -1,0 +1,81 @@
+ATARI GAUNTLET II ASCII LEVEL MAP
+KIND: level record 092
+ROM_RECORD_ID: 91
+SLAPSTIC_BANK: 3
+CPU_POINTER: 0x038291
+HEADER_00_0D: 0A 00 20 08 00 22 D2 AE 83 5D 6F
+COMPRESSED_BYTES: 259
+GRID: 32 x 32 logical metatiles; one metatile is 16 x 16 pixels
+CELL: two ASCII characters
+
+LEGEND
+  .. = type 00: empty/floor
+  ## = type 02: solid wall or loader-created top border
+  03 = type 03: Gauntlet II runtime/control type
+  04 = type 04: solid wall variant
+  05 = type 05: loader marker (not retained in the final type grid)
+  07 = type 07: solid wall variant
+  08 = type 08: solid wall variant
+  09 = type 09: solid wall variant
+  0F = type 0F: warrior start
+  10 = type 10: normal exit
+  15 = type 15: large enemy/entity
+  18 = type 18: Gauntlet II runtime/control type
+  19 = type 19: Gauntlet II runtime/control type
+  1A = type 1A: Gauntlet II runtime/control type
+  1B = type 1B: Gauntlet II runtime/control type
+  1D = type 1D: monster/bone entity
+  1E = type 1E: bone pile
+  20 = type 20: generator variant
+  22 = type 22: generator/entity variant
+  23 = type 23: Gauntlet II runtime/control type
+  25 = type 25: Gauntlet II runtime/control type
+  29 = type 29: Gauntlet II runtime/control type
+  2C = type 2C: Gauntlet II runtime/control type
+  2E = type 2E: treasure chest
+  2F = type 2F: level object
+  31 = type 31: food
+  32 = type 32: potion
+  35 = type 35: key
+  38 = type 38: Gauntlet II runtime/control type
+  3F = type 3F: red wall insert
+
+MAP
+     0001020304050607080910111213141516171819202122232425262728293031
+00 | ################################################################
+01 | ##..........38##..2E##2E##..........2C##2E....##................
+02 | ##..0F......20##..03......2C##2E##....######........25##........
+03 | ##............##........##....######......29##......####..####1D
+04 | ##............##10..................................##2E......##
+05 | ##............##########04######################..##2E##........
+06 | ##............07........##2E....2F..32....2E##............##....
+07 | ##..........1D07........##..................##..####2E####2E....
+08 | ##35......31..07........##..15........15..2F##..2E####....##....
+09 | ################........############04......##....##........##..
+10 | ##1E....................##2E2E2F2E2E##......##..22##....20......
+11 | ##......................3F..........3F....2E##..##......####....
+12 | ##....................35##......29..##......##..##..............
+13 | ##080808##################..........##......##......##....##....
+14 | ##..1B..........................23..##....2F##......2E##........
+15 | ##..................................##15....##......##....##20##
+16 | ##................38............29..##......##..............##..
+17 | ##..........09####09................##....2E##..................
+18 | ##..........##1515##............23..##......##..1D##..##1D##....
+19 | ##..........##1515##..............35##......##..##2E..####......
+20 | ##..........09####09............######....2F##..####..####..1D..
+21 | ##..............................##2E..15....##..####....##..####
+22 | ##............................35##........2E##..####............
+23 | ##......23..29..23..##############......######..................
+24 | ##..................##2E....32..........##1805..............03..
+25 | ##..1D..1D..########04..................##050503....03..03..03..
+26 | ##................35##....2F15....2F..2E##......................
+27 | ##..................##########04########04......................
+28 | ##............19....09..........................................
+29 | ##..................09..........................................
+30 | ##......19..........09......19....2C........19..................
+31 | ##2E................09....................................1A..35
+
+NOTES
+  The map is the deterministic output of the ROM decoder plus its top border.
+  Runtime object setup can replace markers and open individual border cells.
+  Unknown type names remain numeric so this file does not invent semantics.
