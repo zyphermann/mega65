@@ -47,17 +47,26 @@ GAME_ROMS = {
 }
 
 
-def png(path: Path, width: int, height: int, pixels: bytes, palette: list[tuple[int, int, int]]) -> None:
+def png(
+    path: Path,
+    width: int,
+    height: int,
+    pixels: bytes,
+    palette: list[tuple[int, int, int]],
+    transparency: bytes | None = None,
+) -> None:
     def chunk(kind: bytes, data: bytes) -> bytes:
         body = kind + data
         return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
 
     rows = b"".join(b"\0" + pixels[y * width:(y + 1) * width] for y in range(height))
     plte = b"".join(bytes(rgb) for rgb in palette)
+    transparent_chunk = chunk(b"tRNS", transparency) if transparency is not None else b""
     path.write_bytes(
         b"\x89PNG\r\n\x1a\n"
         + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 3, 0, 0, 0))
         + chunk(b"PLTE", plte)
+        + transparent_chunk
         + chunk(b"IDAT", zlib.compress(rows, 9))
         + chunk(b"IEND", b"")
     )
@@ -73,6 +82,13 @@ def sheet(tiles: list[bytes], columns: int) -> tuple[int, int, bytes]:
             start = (oy + y) * width + ox
             out[start:start + 8] = tile[y * 8:y * 8 + 8]
     return width, rows * 8, bytes(out)
+
+
+def gauntlet_logo(tiles: list[bytes]) -> tuple[int, int, bytes]:
+    """Assemble the 10x3 Alpha-layer logo shown during game start."""
+    first_tile = 0x0BA
+    tile_count = 10 * 3
+    return sheet(tiles[first_tile:first_tile + tile_count], 10)
 
 
 def chars(data: bytes) -> list[bytes]:
@@ -163,6 +179,20 @@ def main() -> None:
         (args.output / f"{name}.bin").write_bytes(b"".join(tiles))
         width, height, pixels = sheet(tiles, columns)
         png(args.output / f"{name}.png", width, height, pixels, palette)
+
+    if args.game == "gauntlet":
+        width, height, pixels = gauntlet_logo(char_tiles)
+        # Alpha palette group 5 at the first visible logo frame is
+        # 0000,0000,0000,F00F: black detail in pen 1 and full blue in
+        # pen 3.  Pen 0 is made transparent for a reusable standalone asset.
+        png(
+            args.output / "logo.png",
+            width,
+            height,
+            pixels,
+            [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 254)],
+            bytes((0, 255, 255, 255)),
+        )
 
     if args.palette_dump:
         write_palette_csv(args.palette_dump, args.output / "palette.csv")

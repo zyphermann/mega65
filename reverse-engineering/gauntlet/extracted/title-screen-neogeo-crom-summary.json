@@ -1,0 +1,25 @@
+{
+  "input": "/Users/szimmermsnn/Development/zentronic/mega65/reverse-engineering/gauntlet/extracted/title-screen-neogeo-tiles-4bpp.bin",
+  "tile_count": 278,
+  "logical_bytes_per_tile": 128,
+  "bytes_per_tile_per_crom": 64,
+  "raw_bytes_per_crom": 17792,
+  "output_bytes_per_crom": 17792,
+  "c1_planes": [
+    0,
+    1
+  ],
+  "c2_planes": [
+    2,
+    3
+  ],
+  "block_order": [
+    "upper-right",
+    "lower-right",
+    "upper-left",
+    "lower-left"
+  ],
+  "roundtrip_verified_tiles": 278,
+  "c1_sha256": "0a70c14cd91fc4e57b091e6aee4a2f90f4897c2a922b1d4da337a8f0c099e187",
+  "c2_sha256": "ef55d073bc6f9a630d351592640f5e80094cbcadb1ac149724a76a51750ab684"
+}

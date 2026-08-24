@@ -69,6 +69,27 @@ Python-Extraktor benötigt keine externen Pakete. Er erzeugt:
 |---|---|
 | `extracted/chars.png` | Übersicht über 512 Alpha-Tiles |
 | `extracted/chars.bin` | 512 Tiles, je 64 ungepackte Pen-Bytes |
+| `extracted/logo.png` | Startlogo aus Alpha-Tiles `$0BA-$0D7`, 80 x 24 Pixel, transparenter Hintergrund |
+| `extracted/title-screen.png` | vollständig hochgefahrenes illustriertes Titelbild mit gold/rotem Schriftzug; weißer 1-Pixel-Rahmen und acht unbenutzte rechte Rasterspalten entfernt, 326 x 238 Pixel |
+| `extracted/title-screen-indexed.png` | dasselbe rahmenfreie Titelbild als verlustfreies 8-Bit-Indexed-PNG mit 77 eingebetteten Farben |
+| `extracted/title-screen-palette.bin` | kompakte Palette des Titelbilds, 77 RGB888-Tripel |
+| `extracted/title-screen-palette.csv` | dieselbe Palette mit Index und RGB-Werten |
+| `extracted/title-screen-indexed-marked.png` | Diagnosefassung: ausschließlich die 5735 animierten Schriftzugpixel verwenden 19 auffällige, sonst unbenutzte Markerfarben |
+| `extracted/title-screen-marked-palette.bin` | RGB888-Palette der Diagnosefassung |
+| `extracted/title-screen-marked-palette.csv` | markiert jeden zusätzlichen Eintrag als `animated_marker` und nennt dessen ursprüngliche RGB-Farbe |
+| `extracted/title-screen-indexed-marked-cropped.png` | zusätzliche indizierte 320-x-224-Fassung mit eingebetteter Palette; je 7 Zeilen oben/unten sowie die ursprünglichen Quellspalten 1, 2, 3, 140, 193 und 325 entfernt |
+| `extracted/title-screen-cycle-indexed.png` | Diagnosefassung mit einer eigenen Markerfarbe für jede der 20 unabhängig animierten Farbspuren |
+| `extracted/title-screen-cycle-palette.bin/.csv` | 97-farbige Diagnosepalette mit Zuordnung von Index, Farbspur und RGB-Wert der Startphase |
+| `extracted/title-screen-cycle.bin/.csv` | vollständiger Originalzyklus: 162 Phasen mal 20 Farbspuren als Neo-Geo-Farbwörter und lesbare RGB-Tabelle |
+| `extracted/title-screen-cycle-summary.json` | Messwerte zu Periode, Spuren, Pixeln und Tabellenformat |
+| `extracted/title-screen-indexed-marked-cropped-neogeo.png` | indizierte Neo-Geo-Vorschau im 20-x-14-Tileraster; Pen 0 plus höchstens 15 sichtbare Farben je 16-x-16-Tile |
+| `extracted/title-screen-neogeo-tiles-4bpp.bin` | deduplizierte logische 16-x-16-Grafiktiles, zwei 4-Bit-Pens je Byte; noch nicht in die physische C-ROM-Verdrahtung umgeordnet |
+| `extracted/title-screen-neogeo-c1.bin`, `title-screen-neogeo-c2.bin` | dieselben Tiles im nativen Cartridge-Format: C1 enthält Bitplanes 0/1, C2 Bitplanes 2/3 |
+| `extracted/title-screen-neogeo-crom-summary.json` | C-ROM-Größen, Block-/Plane-Anordnung, Prüfsummen und Zahl der erfolgreich rückdekodierten Tiles |
+| `extracted/title-screen-neogeo-tilemap.bin/.csv` | 20 spaltenweise Sprite-Chains mit Tile- und Palettennummern, zusätzlich menschenlesbare Diagnosewerte |
+| `extracted/title-screen-neogeo-palettes.bin/.csv` | vollständiges 8192-Byte-Neo-Geo-Palette-RAM-Abbild und Herkunft jedes verwendeten Eintrags |
+| `extracted/title-screen-neogeo-animation-palettes.bin/.csv` | 162 kompakte Palettenphasen mit je 91 tatsächlich zu schreibenden Neo-Geo-Farbwörtern |
+| `extracted/title-screen-neogeo-summary.json` | Maße, Anzahl Grafiktiles/Paletten und messbarer Quantisierungsverlust |
 | `extracted/playfield-motion-objects.png` | Übersicht über alle 8192 4-bpp-Tiles |
 | `extracted/playfield-motion-objects.bin` | 8192 Tiles, je 64 ungepackte Pen-Bytes |
 | `extracted/levels/level-001.txt` bis `level-114.txt` | normale Level als 32-x-32-ASCII-Karten |
@@ -80,6 +101,31 @@ Python-Extraktor benötigt keine externen Pakete. Er erzeugt:
 
 Die Farben der PNGs sind bewusst eine Diagnosepalette: Ein Pixelwert entspricht
 dem Pen-Index und nicht bereits einer Spielfarbe.
+
+`make title-screen-neogeo` übersetzt die 320-x-224-Fassung in das
+Neo-Geo-Limit von Pen 0 plus 15 sichtbaren Farben pro 16-x-16-Tile. Farben der
+animierten Logo-Rampe sind fest geschützt; nur statische Farben dürfen durch
+gewichtete, deterministische Farbmedoide ersetzt werden. Im derzeitigen Bild
+werden 15 von 280 Bildschirmtiles beziehungsweise 252 Pixel reduziert. Die
+278 deduplizierten Grafiktiles verwenden 64 zusammengeführte Sprite-Paletten
+in den Bänken 16 bis 79. `title-screen-neogeo-summary.json` hält diese Werte
+prüfbar fest.
+
+Der originale Logozyklus wurde in Schritten von drei Frames über eine volle
+Periode aufgenommen. Er wiederholt sich nach 162 Phasen beziehungsweise 486
+Frames. Die 5735 animierten Pixel bilden 20 unterschiedliche zeitliche
+Farbspuren; in Phase 0 sind davon nur 19 RGB-Werte verschieden. Gerade diese
+zwei anfangs gleichfarbigen, später auseinanderlaufenden Spuren erfordern zwei
+getrennte Tile-Pens. Eine Rotation der 19 sichtbaren Startfarben wäre daher
+nicht originalgetreu.
+
+`tools/convert_neogeo_crom.py` wandelt das logische Zwischenformat ohne
+Änderung der Tilecodes in ein C-ROM-Paar um. Jeder Tile belegt 64 Byte in C1
+und 64 Byte in C2. Innerhalb eines Tiles folgen die 8-x-8-Quadranten in der
+Hardware-Reihenfolge oben rechts, unten rechts, oben links, unten links; C1
+trägt Bitplanes 0/1 und C2 Bitplanes 2/3. Feste Referenzvektoren prüfen
+Quadranten, Plane und Bitrichtung. Anschließend wird jeder erzeugte Tile wieder
+rückdekodiert und exakt mit dem logischen Eingang verglichen.
 
 ### Levelkarten und Kompression
 

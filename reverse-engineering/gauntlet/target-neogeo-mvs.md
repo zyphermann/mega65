@@ -303,6 +303,41 @@ vom MVS-System-ROM belegten FIX-Farben müssen vor der endgültigen Vergabe
 geprüft werden. Die Farbkonvertierung von Atari-IRGB4444 in Neo-Geos verteilte
 RGB-Bits samt Dunkelbit wird als eigenes, visuell getestetes Tool umgesetzt.
 
+### Titelbild-Prototyp
+
+`make title-screen-neogeo` zerlegt das 320-x-224-Titelbild in 20 x 14 Tiles.
+Schwarz wird Pen 0 und damit transparent; jeder Tile besitzt höchstens 15
+weitere Farben. Die auffälligen Ersatzfarben für die animierte Logo-Rampe
+werden unverändert erhalten. Nur bei 15 der 280 Bildschirmtiles ist eine
+Reduktion nötig, die 248 Pixel betrifft. Kompatible lokale Farbmengen werden
+zu 63 Sprite-Paletten in den Bänken 16 bis 78 zusammengelegt.
+
+Der Build schreibt 278 deduplizierte logische 4-bpp-Grafiktiles, eine
+spaltenweise Tilemap für 20 vertikale Sprite-Chains und ein vollständiges
+8-KiB-Palette-RAM-Abbild. Das logische Tile-Binary packt zunächst zwei Pens pro
+Byte. `tools/convert_neogeo_crom.py` erzeugt daraus zusätzlich das native Paar
+`title-screen-neogeo-c1.bin`/`title-screen-neogeo-c2.bin`. C1 enthält die
+Bitplanes 0/1, C2 die Bitplanes 2/3; jeder Tile belegt in jeder Datei 64 Byte.
+Der Konverter prüft jeden Tile durch eine verlustfreie Rückdekodierung. Nur die
+spätere Auffüllung auf die Kapazität der konkret gewählten ROM-Chips bleibt als
+Platinen-Verpackungsschritt offen.
+
+### Bootfähiges MVS-Titeldemo
+
+`programs/gauntlet_neogeo_demo/` baut daraus eine vollständige Cartridge mit
+P1-, S1-, M1-, V1-, C1- und C2-ROM. Die ersten 256 C-Tiles bleiben für das
+System transparent reserviert; das Titel-Tileset beginnt bei Code 256. Das
+68000-Programm lädt das 8-KiB-Palettenabbild und setzt 20 unabhängige Line
+Sprites mit je 14 Tiles auf. S1 ist transparent, M1 verwendet `nullsound` und
+V1 bleibt für das stille Demo leer.
+
+Der Builder erzeugt außerdem `gaunttitle.zip`, eine lokale `neogeo.xml` und
+ein quelloffenes `nullbios`. `make smoke` bootet die Cartridge headless in
+MAME, nimmt nach drei Sekunden einen 320-x-224-Screenshot auf und verwirft
+einen schwarzen beziehungsweise unvollständigen Start als Fehler. Der aktuelle
+Build wurde mit MAME 0.227 bis zur stabilen Watchdog-Schleife bei `$0002F4`
+ausgeführt und zeigt das Titelbild auf der emulierten MVS-Videohardware.
+
 ## Eingaben und 2-Spieler-Regeln
 
 Arbeitsbelegung:
