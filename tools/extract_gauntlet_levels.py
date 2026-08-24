@@ -28,10 +28,26 @@ class GameFormat:
     normal_ids: tuple[int, ...]
     demo_ids: tuple[int, ...] = ()
     treasure_ids: tuple[int, ...] = ()
+    secret_ids: tuple[int, ...] = ()
 
     @property
     def all_ids(self) -> tuple[int, ...]:
-        return self.normal_ids + self.demo_ids + self.treasure_ids
+        return self.normal_ids + self.demo_ids + self.treasure_ids + self.secret_ids
+
+
+# The visible VGMaps/default-route numbering is not ROM-directory order.
+# Levels 1..6 use records 0..5.  Thereafter the game adds two to the room ID
+# and wraps the inclusive range 5..101, so all remaining records are visited
+# in two interleaved passes (odd IDs first, then even IDs).
+G2_VISIBLE_RECORD_ORDER = (
+    tuple(range(6))
+    + tuple(range(7, 102, 2))
+    + tuple(range(6, 102, 2))
+)
+G2_VISIBLE_LEVEL_BY_RECORD = {
+    record_id: visible_level
+    for visible_level, record_id in enumerate(G2_VISIBLE_RECORD_ORDER, start=1)
+}
 
 
 GAME_FORMATS = {
@@ -57,9 +73,13 @@ GAME_FORMATS = {
         header_size=11,
         pattern_offsets=(7, 9, 8, 10),
         marker_value=2,
-        # The protected directory has 117 non-null records (IDs 0..116).
-        # Keep all of them visible until their runtime roles are fully named.
-        normal_ids=tuple(range(117)),
+        # $52eca bounds the normal room ring to IDs 0..101.  IDs 102/103 are
+        # loaded by the two attract/demo paths, 104..114 are treasure rooms,
+        # and $44e1e selects 115 or 116 for the two secret rooms.
+        normal_ids=tuple(range(102)),
+        demo_ids=(102, 103),
+        treasure_ids=tuple(range(104, 115)),
+        secret_ids=(115, 116),
     ),
 }
 TYPE_DESCRIPTIONS = {
@@ -268,7 +288,13 @@ def token(value: int, game: str = "gauntlet") -> str:
 
 def output_name(record_id: int, game: str = "gauntlet") -> str:
     if game == "gaunt2":
-        return f"level-{record_id + 1:03d}.txt"
+        if record_id in G2_VISIBLE_LEVEL_BY_RECORD:
+            return f"level-{G2_VISIBLE_LEVEL_BY_RECORD[record_id]:03d}.txt"
+        if record_id < 104:
+            return f"demo-{record_id - 101:03d}.txt"
+        if record_id < 115:
+            return f"treasure-room-{record_id - 103:02d}.txt"
+        return f"secret-room-{record_id - 114:02d}.txt"
     if record_id < 114:
         return f"level-{record_id + 1:03d}.txt"
     if record_id < 152:
@@ -278,6 +304,18 @@ def output_name(record_id: int, game: str = "gauntlet") -> str:
 
 def png_name(record_id: int, game: str = "gauntlet") -> str:
     return Path(output_name(record_id, game)).with_suffix(".png").name
+
+
+def output_sort_key(record_id: int, game: str = "gauntlet") -> tuple[int, int]:
+    if game != "gaunt2":
+        return (0, record_id)
+    if record_id in G2_VISIBLE_LEVEL_BY_RECORD:
+        return (0, G2_VISIBLE_LEVEL_BY_RECORD[record_id])
+    if record_id < 104:
+        return (1, record_id)
+    if record_id < 115:
+        return (2, record_id)
+    return (3, record_id)
 
 
 def build_program_rom(rom_dir: Path, game: str = "gauntlet") -> bytes:
@@ -340,9 +378,27 @@ def render_png(
     if game == "gaunt2":
         palette_ram = bytearray(palette_dump)
         floor_palette = 0x5D5C8 + ((level.header[6] >> 4) & 0x0F) * 0x20
-        wall_palette = 0x5D7E8 + (level.header[6] & 0x0F) * 0x20
-        palette_ram[2 * (256 + 24 * 16):2 * (256 + 25 * 16)] = program[floor_palette:floor_palette + 0x20]
-        palette_ram[2 * (256 + 31 * 16):2 * (256 + 32 * 16)] = program[wall_palette:wall_palette + 0x20]
+        wall_palette_base = 0x5D7E8 if (level.header[5] & 0x0F) < 6 else 0x5D7C8
+        wall_palette = wall_palette_base + (level.header[6] & 0x0F) * 0x20
+        floor_colours = program[floor_palette:floor_palette + 0x20]
+        wall_colours = program[wall_palette:wall_palette + 0x20]
+
+        def subtract_palette(colours: bytes, amount: int) -> bytes:
+            """Reproduce the saturating IRGB subtraction at G2 $05FD80."""
+            result = bytearray()
+            for offset in range(0, len(colours), 2):
+                value = int.from_bytes(colours[offset:offset + 2], "big") - amount
+                if value < 0:
+                    value = (value & 0x0FFF) | 0x1000
+                result.extend((value & 0xFFFF).to_bytes(2, "big"))
+            return bytes(result)
+
+        palette_ram[2 * (256 + 24 * 16):2 * (256 + 25 * 16)] = floor_colours
+        palette_ram[2 * (256 + 31 * 16):2 * (256 + 32 * 16)] = wall_colours
+        # MO pen 1 clears PF colour bit $80, mapping groups 24/31 to 16/23.
+        # The game builds those darker groups from the selected level colours.
+        palette_ram[2 * (256 + 16 * 16):2 * (256 + 17 * 16)] = subtract_palette(floor_colours, 0x7000)
+        palette_ram[2 * (256 + 23 * 16):2 * (256 + 24 * 16)] = subtract_palette(wall_colours, 0x7000)
         if level.record_id == 1:
             # Runtime-verified reference for level 2, including the derived
             # stain and alternate-floor groups 16..30.
@@ -730,7 +786,13 @@ def render_png(
 
 def level_kind(record_id: int, game: str = "gauntlet") -> str:
     if game == "gaunt2":
-        return f"level record {record_id + 1:03d}"
+        if record_id in G2_VISIBLE_LEVEL_BY_RECORD:
+            return f"normal level {G2_VISIBLE_LEVEL_BY_RECORD[record_id]:03d}"
+        if record_id < 104:
+            return f"demo/attract map {record_id - 101:03d}"
+        if record_id < 115:
+            return f"treasure room {record_id - 103:02d}"
+        return f"secret room {record_id - 114:02d}"
     if record_id < 114:
         return f"normal level {record_id + 1:03d}"
     if record_id < 152:
@@ -790,11 +852,20 @@ def render(level: Level, game: str = "gauntlet") -> str:
 
 
 def render_index(levels: list[Level], game: str = "gauntlet") -> str:
-    counts = Counter(
-        "normal" if game == "gaunt2" or level.record_id < 114
-        else "demo" if level.record_id < 152 else "treasure"
-        for level in levels
-    )
+    if game == "gaunt2":
+        def category(level: Level) -> str:
+            if level.record_id < 102:
+                return "normal"
+            if level.record_id < 104:
+                return "demo"
+            if level.record_id < 115:
+                return "treasure"
+            return "secret"
+    else:
+        def category(level: Level) -> str:
+            return "normal" if level.record_id < 114 else "demo" if level.record_id < 152 else "treasure"
+
+    counts = Counter(category(level) for level in levels)
     lines = [
         f"ATARI {'GAUNTLET II' if game == 'gaunt2' else 'GAUNTLET'} LEVEL INDEX",
         "",
@@ -802,10 +873,11 @@ def render_index(levels: list[Level], game: str = "gauntlet") -> str:
         f"NORMAL: {counts['normal']}",
         f"DEMO_ATTRACT: {counts['demo']}",
         f"TREASURE_ROOMS: {counts['treasure']}",
+        f"SECRET_ROOMS: {counts['secret']}",
         "",
         "FILE                         ID   BANK  POINTER   PACKED  HEADER_00_0D",
     ]
-    for level in levels:
+    for level in sorted(levels, key=lambda item: output_sort_key(item.record_id, game)):
         lines.append(
             f"{output_name(level.record_id, game):<28} {level.record_id:3d}  "
             f"{level.bank:4d}  {level.pointer:06X}  {level.compressed_size:6d}  "
@@ -813,7 +885,14 @@ def render_index(levels: list[Level], game: str = "gauntlet") -> str:
         )
     lines.append("")
     if game == "gaunt2":
-        lines.append("ROM records 0..116 are the 117 non-null entries in the protected directory.")
+        lines.extend([
+            "Normal filenames follow the visible two-step route: records 0..5 are levels 1..6;",
+            "records 7,9,..101 are levels 7..54; records 6,8,..100 are levels 55..102.",
+            "ROM records 102..103 are demo/attract maps, 104..114 are eleven treasure rooms,",
+            "and records 115..116 are the two secret rooms selected by the dedicated code path.",
+            "After visible level 102 the normal room ring wraps; a displayed level number is not",
+            "a permanent one-to-one property of a ROM record for every operator route or later loop.",
+        ])
     else:
         lines.extend([
             "Normal files map ROM IDs 0..113 to level numbers 001..114.",
@@ -879,7 +958,7 @@ def main() -> None:
     (args.output / "index.txt").write_text(render_index(levels, args.game), encoding="ascii", newline="\n")
     print(
         f"Extracted {len(game_format.normal_ids)} normal levels, {len(game_format.demo_ids)} demo maps and "
-        f"{len(game_format.treasure_ids)} treasure rooms as ASCII"
+        f"{len(game_format.treasure_ids)} treasure rooms and {len(game_format.secret_ids)} secret rooms as ASCII"
         f"{' and PNG' if args.tiles else ''} to {args.output}"
     )
 

@@ -9,7 +9,8 @@ Der ROM-Satz in `assets/gaunt2` ist als eigener, reproduzierbarer Build erfasst.
 - 12.288 entpackte 8×8-Playfield-/Motion-Object-Tiles;
 - PNG-Übersichten beider Tile-Sätze;
 - einen Dump der 1.024 IRGB4444-Palettenwörter samt CSV;
-- 117 geschützte Karten als ASCII-TXT und 512×512-PNG.
+- 102 normal nummerierte Karten, zwei Demo-Karten, elf Treasure Rooms und zwei
+  Secret Rooms als ASCII-TXT und 512×512-PNG.
 
 Aufruf:
 
@@ -93,6 +94,15 @@ Einmündungen. Zu jedem der vier Tilewörter kommt `$7000` für Playfield-
 Farbgruppe 7. PF-RAM-Dumps der laufenden Level 1 und 2 bestätigen die daraus
 berechneten Quartette.
 
+Die Palettenwahl benutzt zusätzlich Headerbyte 6. Dessen Nibbles wählen Boden-
+und Mauerfarbsatz. Für Mauer-Tilefamilien `0` bis `5` beginnt die Farbtabelle
+bei `$05D7E8`, für Familien ab `6` bereits bei `$05D7C8`; dadurch verschiebt
+sich der gewählte Satz um einen Eintrag. Anschließend erzeugt die Routine bei
+`$05FD80` die von Motion-Object-Pen 1 sichtbaren Gruppen 16 und 23 durch eine
+sättigende IRGB-Subtraktion von `$7000` aus den normalen Gruppen 24 und 31.
+Insbesondere Level 16 benötigt sowohl diese Tabellenverschiebung als auch die
+pro Level neu berechnete Pen-1-Palette.
+
 Level 2 zeigt zwei weitere wichtige Fälle. Typ `01` benutzt dieselben
 Bodenformen mit dem zusätzlichen Attribut `$2000` und erzeugt die hellen,
 gesprenkelten Bahnen. Typ `3F` sind die roten, in die graue Mauer eingesetzten
@@ -140,6 +150,56 @@ macht, ersetzt die Spiellogik alle drei Codes durch `$1990`; erst diese
 überlappenden 3×3-MOs ergeben den zusammenhängenden Drachen. Horizontale
 Typ-`14`-Reihen bleiben in der beobachteten Situation bei `$183F`. Der statische
 Renderer bildet diese kontextabhängige Auswahl nach.
+
+## Secret Rooms und ROM-Datensatznummern
+
+Ein Secret Room ist kein regulär nummeriertes Level. Das ist nun direkt durch
+die Aufrufer im 68010-Code belegt und nicht nur aus den Kartenmotiven abgeleitet:
+
+- `$904004` enthält die im HUD ausgegebene Levelnummer; `$904000` enthält die
+  davon getrennte interne Raumnummer.
+- Der normale Fortschritt wird beim EXIT ab `$052DC8` vorbereitet. Der Code
+  erhöht die sichtbare Nummer, übernimmt zunächst den aktuellen ROM-Datensatz
+  und addiert danach `1 + $90400E` auf die interne Raumnummer.
+- `$052ECA` hält den normalen Ring im Bereich `0..101`. Die auf den VGMaps-
+  Karten und in unseren Referenzläufen sichtbare Route benutzt `$90400E = 1`,
+  also Schrittweite zwei. Deshalb folgen nach den festen Datensätzen `0..5`
+  die ungeraden Datensätze `7,9,…,101` und danach die geraden Datensätze
+  `6,8,…,100`.
+- `$044E1E` setzt bei erfüllter geheimer Bedingung die interne Raumnummer
+  ausdrücklich auf `$73` oder `$74`, also ROM-Datensatz 115 oder 116. Der
+  anschließende UI-Pfad ab `$044F7E` verwendet den im ROM stehenden Text
+  `SECRET ROOM`.
+- Der andere Sonderpfad lädt die Datensätze 104 bis 114 und verwendet den Text
+  `TREASURE ROOM`. Das sind exakt elf Treasure Rooms.
+- Die beiden Datensätze 102 und 103 werden von den Demo-/Attract-Pfaden geladen.
+
+Damit ist Level 7 kein Secret Room. Es ist auf der Zweierschritt-Route der
+ROM-Datensatz 7 und wurde bisher irreführend als `level-008` ausgegeben.
+Entsprechend ist ROM-Datensatz 11 das sichtbare Level 9; das erklärt den
+Vergleich mit der externen Karte ohne angenommene, linear eingeschobene Räume.
+
+Der Export benennt nun nach der sichtbaren Referenzroute:
+
+| Dateien | ROM-Datensätze | Bedeutung |
+|---|---:|---|
+| `level-001` … `level-006` | 0 … 5 | feste Anfangsfolge |
+| `level-007` … `level-054` | 7, 9, …, 101 | erste Hälfte der Zweierschritt-Route |
+| `level-055` … `level-102` | 6, 8, …, 100 | zweite Hälfte der Zweierschritt-Route |
+| `demo-001` … `demo-002` | 102 … 103 | Demo/Attract |
+| `treasure-room-01` … `treasure-room-11` | 104 … 114 | Treasure Rooms |
+| `secret-room-01` … `secret-room-02` | 115 … 116 | echte Secret Rooms |
+
+Nach dem Ende des Rings können sichtbare Nummern weiterlaufen, während
+Raumdatensätze wiederverwendet werden. Außerdem erlaubt `$90400E` andere
+Schrittweiten. Eine sichtbare Levelnummer ist deshalb außerhalb der hier
+festgehaltenen Referenzroute keine unveränderliche Eigenschaft eines
+ROM-Datensatzes. Die TXT-Kopfzeile und `index.txt` bewahren immer zusätzlich
+die rohe `ROM_RECORD_ID` auf.
+
+Visuelle Gegenproben: [VGMaps Demo und Levels 1–8](https://vgmaps.com/Atlas/Arcade/GauntletII-Demo&Levels-1-8.png),
+[Levels 9–17](https://vgmaps.com/Atlas/Arcade/GauntletII-Levels-9-17.png) sowie
+[Levels 99–103 und Secret Rooms](https://vgmaps.com/Atlas/Arcade/GauntletII-Levels-99-103&SecretRooms.png).
 
 ## Palette und lokaler PROM-Hinweis
 

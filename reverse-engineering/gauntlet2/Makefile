@@ -90,10 +90,16 @@ verify: graphics palette levels
 	@test "$$(wc -c < $(TILE_BIN) | tr -d ' ')" -eq 786432
 	@test "$$(wc -c < $(PALETTE_BIN) | tr -d ' ')" -eq 2048
 	@test -s $(CHAR_PNG) -a -s $(TILE_PNG) -a -s $(PALETTE_CSV)
-	@test "$$(find $(LEVEL_DIR) -type f -name 'level-*.txt' | wc -l | tr -d ' ')" -eq 117
-	@test "$$(find $(LEVEL_DIR) -type f -name 'level-*.png' | wc -l | tr -d ' ')" -eq 117
+	@test "$$(find $(LEVEL_DIR) -type f -name 'level-*.txt' | wc -l | tr -d ' ')" -eq 102
+	@test "$$(find $(LEVEL_DIR) -type f -name 'level-*.png' | wc -l | tr -d ' ')" -eq 102
+	@test "$$(find $(LEVEL_DIR) -type f -name 'demo-*.txt' | wc -l | tr -d ' ')" -eq 2
+	@test "$$(find $(LEVEL_DIR) -type f -name 'demo-*.png' | wc -l | tr -d ' ')" -eq 2
+	@test "$$(find $(LEVEL_DIR) -type f -name 'treasure-room-*.txt' | wc -l | tr -d ' ')" -eq 11
+	@test "$$(find $(LEVEL_DIR) -type f -name 'treasure-room-*.png' | wc -l | tr -d ' ')" -eq 11
+	@test "$$(find $(LEVEL_DIR) -type f -name 'secret-room-*.txt' | wc -l | tr -d ' ')" -eq 2
+	@test "$$(find $(LEVEL_DIR) -type f -name 'secret-room-*.png' | wc -l | tr -d ' ')" -eq 2
 	@test -s $(LEVEL_DIR)/index.txt
-	@echo "Gauntlet II geprüft: 512 Chars, 12288 PF/MO-Tiles, 1024 Farben, 117 ASCII- und PNG-Karten."
+	@echo "Gauntlet II geprüft: 102 Level, 2 Demos, 11 Treasure Rooms und 2 Secret Rooms als ASCII und PNG."
 
 clean:
 	$(RM) $(GRAPHICS_OUTPUTS) $(PALETTE_BIN) $(PALETTE_CSV)
@@ -103,6 +109,6 @@ help:
 	@echo "make                Grafik, Palette, ASCII-Level und Prüfung"
 	@echo "make graphics       Tile-Binaries und PNG-Sheets"
 	@echo "make palette        Laufzeitpalette mit MAME aufnehmen/konvertieren"
-	@echo "make levels         117 ROM-Karten als ASCII und 512x512-PNG"
+	@echo "make levels         117 klassifizierte ROM-Karten als ASCII und 512x512-PNG"
 	@echo "make verify         Größen und Vollständigkeit prüfen"
 	@echo "make clean          generierte Gauntlet-II-Assets entfernen"
