@@ -9,8 +9,9 @@ Der ROM-Satz in `assets/gaunt2` ist als eigener, reproduzierbarer Build erfasst.
 - 12.288 entpackte 8×8-Playfield-/Motion-Object-Tiles;
 - PNG-Übersichten beider Tile-Sätze;
 - einen Dump der 1.024 IRGB4444-Palettenwörter samt CSV;
-- 102 normal nummerierte Karten, zwei Demo-Karten, elf Treasure Rooms und zwei
-  Secret Rooms als ASCII-TXT und 512×512-PNG.
+- 103 normal nummerierte Karten, eine Demo-Karte, elf Treasure Rooms und zwei
+  Secret Rooms als ASCII-TXT sowie je ein vollständiges und ein
+  Playfield-only-512×512-PNG.
 
 Aufruf:
 
@@ -86,13 +87,28 @@ ROM-Reihenfolge.
 
 Headerbyte 5 wählt die beiden grafischen Levelthemen: Das obere Nibble ist der
 Bodensatz und liefert den Tile-Offset `Nibble × $30`, das untere Nibble ist der
-Mauersatz in der Tabelle ab `$00A6C0`. Level 1 enthält `$61` (Boden 6,
-Mauer 1), Level 2 `$24` (Boden 2, Mauer 4). Die Typen `02` und `04` bis `09`
-sind dabei solide Mauerfamilien. Ihre acht Nachbarn bilden weiterhin die Maske
-für `$009C24`; der resultierende Formindex liefert Enden, Ecken, Kreuzungen und
-Einmündungen. Zu jedem der vier Tilewörter kommt `$7000` für Playfield-
-Farbgruppe 7. PF-RAM-Dumps der laufenden Level 1 und 2 bestätigen die daraus
-berechneten Quartette.
+Mauersatz. Level 1 enthält `$61` (Boden 6, Mauer 1), Level 2 `$24` (Boden 2,
+Mauer 4). Die Typen `02` und `04` bis `09` sind dabei solide Mauerfamilien.
+Ihre acht Nachbarn bestimmen Enden, Ecken, Kreuzungen und Einmündungen; zu
+jedem der vier Tilewörter kommt `$7000` für Playfield-Farbgruppe 7. PF-RAM-
+Dumps der laufenden Level 1 und 2 bestätigen die daraus berechneten Quartette.
+
+Das untere Nibble ist jedoch nicht für alle Werte ein linearer Tabellenindex.
+Level 10 beziehungsweise ROM-Datensatz 13 enthält Headerwert `$2B`. Die
+Routine bei `$05ED20` subtrahiert von Familie `$B` fünf und behandelt sie damit
+wie die Spezialfamilie `$6`: Eine Maske der verbundenen Nachbarn wählt über
+`$05EF24` ein Quartett ab `$05D2F8`. Tatsächlich gesetzt werden die Bits der
+verbundenen `$8000`-Wandzellen; Typ `05` besitzt zu diesem Zeitpunkt noch den
+Record `$8003`, und Typ `3F` wird ausdrücklich ausgeschlossen. Die Bits laufen
+in der logischen ROM-Reihenfolge
+Nordwest, Nord, Nordost, West, Ost, Südwest, Süd und Südost von Bit 0 bis 7;
+die 180-Grad-Abbildung ins sichtbare Playfield dreht diese Zuordnung für die
+PNG-Koordinaten entsprechend um. Typ `05` verwendet das feste Quartett bei
+`$05D3D0`. Der frühere
+Offline-Renderer verwendete `$B` irrtümlich als Index 11
+in der linearen Gauntlet-I-Tabelle und las dadurch fremde Daten als Wandtiles.
+Der korrigierte Pfad betrifft genau Level 10 und Level 40, die beide diesen
+Headerwert besitzen und in der Referenz die gleiche grüne Spezialmauer zeigen.
 
 Die Palettenwahl benutzt zusätzlich Headerbyte 6. Dessen Nibbles wählen Boden-
 und Mauerfarbsatz. Für Mauer-Tilefamilien `0` bis `5` beginnt die Farbtabelle
@@ -166,13 +182,17 @@ die Aufrufer im 68010-Code belegt und nicht nur aus den Kartenmotiven abgeleitet
   also Schrittweite zwei. Deshalb folgen nach den festen Datensätzen `0..5`
   die ungeraden Datensätze `7,9,…,101` und danach die geraden Datensätze
   `6,8,…,100`.
+- Der Sonderloader ab `$0449D4` lädt danach Datensatz 102 als sichtbares
+  Level 103. Dessen stark laufzeitabhängige Wanddarstellung erklärt, warum der
+  unveränderte logische Export dort farblich und bei Spezialtiles noch von der
+  Aufnahme abweicht.
 - `$044E1E` setzt bei erfüllter geheimer Bedingung die interne Raumnummer
   ausdrücklich auf `$73` oder `$74`, also ROM-Datensatz 115 oder 116. Der
   anschließende UI-Pfad ab `$044F7E` verwendet den im ROM stehenden Text
   `SECRET ROOM`.
 - Der andere Sonderpfad lädt die Datensätze 104 bis 114 und verwendet den Text
   `TREASURE ROOM`. Das sind exakt elf Treasure Rooms.
-- Die beiden Datensätze 102 und 103 werden von den Demo-/Attract-Pfaden geladen.
+- Datensatz 103 wird vom Demo-/Attract-Pfad geladen.
 
 Damit ist Level 7 kein Secret Room. Es ist auf der Zweierschritt-Route der
 ROM-Datensatz 7 und wurde bisher irreführend als `level-008` ausgegeben.
@@ -186,7 +206,8 @@ Der Export benennt nun nach der sichtbaren Referenzroute:
 | `level-001` … `level-006` | 0 … 5 | feste Anfangsfolge |
 | `level-007` … `level-054` | 7, 9, …, 101 | erste Hälfte der Zweierschritt-Route |
 | `level-055` … `level-102` | 6, 8, …, 100 | zweite Hälfte der Zweierschritt-Route |
-| `demo-001` … `demo-002` | 102 … 103 | Demo/Attract |
+| `level-103` | 102 | separat geladenes letztes Level |
+| `demo-001` | 103 | Demo/Attract |
 | `treasure-room-01` … `treasure-room-11` | 104 … 114 | Treasure Rooms |
 | `secret-room-01` … `secret-room-02` | 115 … 116 | echte Secret Rooms |
 
@@ -238,4 +259,62 @@ Für den MVS-Port sind drei Datenströme getrennt zu halten:
 Die zusätzlichen 4-bpp-Tiles erhöhen den Rohumfang auf 768 KiB im entpackten
 8×8-Format. Für Neo Geo müssen sie in 16×16-Sprites umgepackt und die Atari-
 Palettegruppen auf Neo-Geo-Palettenbänke abgebildet werden. Die Level-TXT-Dateien
-sind dabei die stabile logische Quelle; die PNGs dienen als visuelle Kontrolle.
+sind dabei die stabile logische Quelle. `extracted/levels/` enthält weiterhin
+die vollständigen statischen Rekonstruktionen mit Motion Objects. Im selben
+Ordner liegen dieselben 117 Karten mit `-playfield` vor der Dateiendung (zum
+Beispiel `level-001-playfield.png`), aber ausschließlich mit dem zuerst
+gerenderten Playfield-Layer.
+
+Im Playfield-only-Satz bleiben Boden, alle Wandfamilien, rote Wandeinsätze und
+die Playfield-EXITs erhalten. Tore, Generatoren, Gegner, Knochen, Startfiguren
+und Gegenstände fehlen, weil sie auf der Atari-Hardware Motion Objects sind.
+Jedes Bild bildet damit exakt 32 x 32 Zellen zu je 16 x 16 Pixeln ab und kann
+später direkt in Neo-Geo-C-Tiles zerlegt und über alle Levels dedupliziert
+werden. Die ausgelassenen Objekte bleiben eine separate Sprite-Schicht.
+
+`make level-tilesets` erzeugt für jede der 117 Karten unter
+`extracted/level-tilesets/` zwei farbige 16-x-16-Tileatlanten samt
+32-x-32-Indexmaps: `*-playfield-tiles.png`/`*-playfield-map.txt` für das
+Playfield und `*-motion-object-tiles.png`/`*-motion-object-map.txt` für die
+zugehörige transparente Motion-Object-Ebene. Der MO-Atlas hält alle
+zusammenhängenden Objektteile auf einem 16-x-16-Raster benachbart und
+dupliziert gemeinsame Blöcke vorerst zwischen Gruppen. Damit werden die
+ursprünglichen 8-x-8-Grafiken nur noch gerastert, aber nie als Neo-Geo-Tile
+benötigt. `*-motion-object-layer.png`
+enthält diese Ebene zusätzlich in der ursprünglichen Größe 512 x 512; Tile 0
+des MO-Atlas ist immer vollständig transparent. `index.csv` fasst die
+eindeutigen Tilezahlen, belegten MO-Zellen, Gruppen und gepackten Atlasgrößen
+pro Karte zusammen.
+
+Auch hier wird die MO-Ebene aus der Differenz des vollständigen und des
+Playfield-only-Renderings gewonnen. Damit bleiben levelabhängige Paletten und
+insbesondere der vom Untergrund abhängige Atari-Pen 1 pixelgenau erhalten.
+Der per-Level-Export inventarisiert die statischen Objekte der
+Levelinitialisierung. Zusätzliche Animations-, Projektil- und Gegnerframes
+liegen getrennt im nachfolgend beschriebenen Laufzeit-/ROM-Katalog.
+
+## Motion-Object-Animationen und Zustände
+
+`make motion-trace` verfolgt in MAME die echten 10-Bit-MO-Links ab den
+SLIP-Einträgen und schreibt jede neue Kombination aus Grafikcode, Größe,
+X-Flip und vollständiger 16-Farben-Palette nach
+`extracted/motion-objects/trace.csv`. Der Standardlauf umfasst 300 emulierte
+Sekunden; längere Läufe sind über `MOTION_TRACE_SECONDS` möglich.
+
+`make motion-catalog` ergänzt die beobachteten Zustände um die vollständigen
+Codesätze der identifizierten Gauntlet-II-Animationstabellen. Der derzeitige
+Katalog umfasst 436 Frame-/Palettenkombinationen, darunter die vier
+Spielerfarben, Bewegungs- und Angriffsphasen, Drachen-/Dämonenfolgen,
+Gegnerzustände, Projektile und Effekte. Alle Motive liegen in
+`motion-objects/frames.png` ausschließlich auf gepolsterten 16-x-16-Grenzen;
+`frames.csv` enthält die maschinenlesbaren Atlasrechtecke und Hardwaredaten.
+
+Atari-Pen 1 darf nicht unbemerkt als normale Spritefarbe eingebrannt werden.
+Seine Pixel stehen deshalb getrennt in `motion-objects/pen-1-mask.png` und
+erscheinen im sichtbaren Frameatlas als Schwarz mit Alpha 128, also ungefähr
+50 Prozent Deckkraft. Pen 0 bleibt wirklich transparent. Diese Alpha-Vorschau
+wird für Neo Geo später pro Level durch eine deckende, zum darunterliegenden
+Hintergrund passende Palettenfarbe ersetzt. Die
+Level-MO-Atlanten beschreiben weiterhin die Positionen und Überhänge, während
+der globale Katalog die vollständigen Animations- und Farbvarianten für die
+spätere MVS-Objektfamilie liefert.

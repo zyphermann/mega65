@@ -38,11 +38,13 @@ class GameFormat:
 # The visible VGMaps/default-route numbering is not ROM-directory order.
 # Levels 1..6 use records 0..5.  Thereafter the game adds two to the room ID
 # and wraps the inclusive range 5..101, so all remaining records are visited
-# in two interleaved passes (odd IDs first, then even IDs).
+# in two interleaved passes (odd IDs first, then even IDs).  The separate
+# $449d4 loader then supplies record 102 as the displayed level 103.
 G2_VISIBLE_RECORD_ORDER = (
     tuple(range(6))
     + tuple(range(7, 102, 2))
     + tuple(range(6, 102, 2))
+    + (102,)
 )
 G2_VISIBLE_LEVEL_BY_RECORD = {
     record_id: visible_level
@@ -73,11 +75,11 @@ GAME_FORMATS = {
         header_size=11,
         pattern_offsets=(7, 9, 8, 10),
         marker_value=2,
-        # $52eca bounds the normal room ring to IDs 0..101.  IDs 102/103 are
-        # loaded by the two attract/demo paths, 104..114 are treasure rooms,
-        # and $44e1e selects 115 or 116 for the two secret rooms.
-        normal_ids=tuple(range(102)),
-        demo_ids=(102, 103),
+        # $52eca bounds the normal room ring to IDs 0..101; $449d4 loads ID
+        # 102 as the special final level 103.  ID 103 is the attract/demo map,
+        # 104..114 are treasure rooms, and $44e1e selects 115/116 as secrets.
+        normal_ids=tuple(range(103)),
+        demo_ids=(103,),
         treasure_ids=tuple(range(104, 115)),
         secret_ids=(115, 116),
     ),
@@ -291,7 +293,7 @@ def output_name(record_id: int, game: str = "gauntlet") -> str:
         if record_id in G2_VISIBLE_LEVEL_BY_RECORD:
             return f"level-{G2_VISIBLE_LEVEL_BY_RECORD[record_id]:03d}.txt"
         if record_id < 104:
-            return f"demo-{record_id - 101:03d}.txt"
+            return f"demo-{record_id - 102:03d}.txt"
         if record_id < 115:
             return f"treasure-room-{record_id - 103:02d}.txt"
         return f"secret-room-{record_id - 114:02d}.txt"
@@ -304,6 +306,11 @@ def output_name(record_id: int, game: str = "gauntlet") -> str:
 
 def png_name(record_id: int, game: str = "gauntlet") -> str:
     return Path(output_name(record_id, game)).with_suffix(".png").name
+
+
+def playfield_png_name(record_id: int, game: str = "gauntlet") -> str:
+    path = Path(png_name(record_id, game))
+    return f"{path.stem}-playfield{path.suffix}"
 
 
 def output_sort_key(record_id: int, game: str = "gauntlet") -> tuple[int, int]:
@@ -367,8 +374,9 @@ def render_png(
     palette_dump: bytes,
     output: Path,
     game: str = "gauntlet",
+    include_motion_objects: bool = True,
 ) -> None:
-    """Render the static playfield and representative motion-object overlays."""
+    """Render the playfield, optionally followed by Motion Object overlays."""
     expected_tiles = 12288 if game == "gaunt2" else 8192
     if len(tiles) != expected_tiles or any(len(tile) != 64 for tile in tiles):
         raise ValueError(f"tile binary must contain {expected_tiles} unpacked 8x8 tiles")
@@ -498,6 +506,33 @@ def render_png(
         ):
             if solid(x + dx, y + dy):
                 neighbour_mask |= bit
+
+        if game == "gaunt2" and (level.header[5] & 0x0F) == 0x0B:
+            # G2 does not use low nibble $B as table index 11.  At $05ED20
+            # it subtracts five and routes both $6 and $B through the special
+            # wall family: a connected-neighbour mask at $05EF24 selects a
+            # quartet in $05D2F8.  Treating $B as a linear theme index was the
+            # source of Level 10's tiles from unrelated ROM tables.
+            neighbour_mask = 0
+            for dx, dy, bit in (
+                (-1, -1, 0x80), (0, -1, 0x40), (1, -1, 0x20),
+                (-1,  0, 0x10),                  (1,  0, 0x08),
+                (-1,  1, 0x04), (0,  1, 0x02), (1,  1, 0x01),
+            ):
+                # $05EBE8 accepts only an $8000 wall record whose PF type is
+                # not $3F.  Type $05 still has record $8003 until $05E868,
+                # which runs after the wall shapes have already been chosen.
+                if cell_at(x + dx, y + dy) in (0x02, 0x04, 0x06, 0x07, 0x08, 0x09):
+                    neighbour_mask |= bit
+            if cell_type == 0x05:
+                address = 0x5D3D0
+            else:
+                shape = program[0x5EF24 + neighbour_mask]
+                address = 0x5D2F8 + shape * 8
+            return tuple(
+                (be16(program, address + index * 2) + 0x7000) & 0xFFFF
+                for index in range(4)
+            )
 
         shape = program[0x9C24 + neighbour_mask]
         if game == "gaunt2":
@@ -753,6 +788,10 @@ def render_png(
             for sub_y, sub_x, index in ((0, 0, 0), (0, 1, 1), (1, 0, 2), (1, 1, 3)):
                 draw_tile(tile_words[index], x * 16 + sub_x * 8, y * 16 + sub_y * 8)
 
+    if not include_motion_objects:
+        png(output, width, height, bytes(pixels), palette)
+        return
+
     # Motion Objects form a separate hardware layer. Draw them only after the
     # complete playfield so neighbouring cells cannot erase their overhang.
     for y in range(32):
@@ -789,7 +828,7 @@ def level_kind(record_id: int, game: str = "gauntlet") -> str:
         if record_id in G2_VISIBLE_LEVEL_BY_RECORD:
             return f"normal level {G2_VISIBLE_LEVEL_BY_RECORD[record_id]:03d}"
         if record_id < 104:
-            return f"demo/attract map {record_id - 101:03d}"
+            return f"demo/attract map {record_id - 102:03d}"
         if record_id < 115:
             return f"treasure room {record_id - 103:02d}"
         return f"secret room {record_id - 114:02d}"
@@ -854,7 +893,7 @@ def render(level: Level, game: str = "gauntlet") -> str:
 def render_index(levels: list[Level], game: str = "gauntlet") -> str:
     if game == "gaunt2":
         def category(level: Level) -> str:
-            if level.record_id < 102:
+            if level.record_id < 103:
                 return "normal"
             if level.record_id < 104:
                 return "demo"
@@ -887,11 +926,12 @@ def render_index(levels: list[Level], game: str = "gauntlet") -> str:
     if game == "gaunt2":
         lines.extend([
             "Normal filenames follow the visible two-step route: records 0..5 are levels 1..6;",
-            "records 7,9,..101 are levels 7..54; records 6,8,..100 are levels 55..102.",
-            "ROM records 102..103 are demo/attract maps, 104..114 are eleven treasure rooms,",
+            "records 7,9,..101 are levels 7..54; records 6,8,..100 are levels 55..102;",
+            "the special final loader supplies record 102 as level 103.",
+            "ROM record 103 is the demo/attract map, 104..114 are eleven treasure rooms,",
             "and records 115..116 are the two secret rooms selected by the dedicated code path.",
-            "After visible level 102 the normal room ring wraps; a displayed level number is not",
-            "a permanent one-to-one property of a ROM record for every operator route or later loop.",
+            "The core room ring wraps after level 102; the special loader provides level 103.",
+            "A displayed number is not a permanent record property on other routes or later loops.",
         ])
     else:
         lines.extend([
@@ -902,6 +942,7 @@ def render_index(levels: list[Level], game: str = "gauntlet") -> str:
         ])
     lines.extend([
         "Each listed TXT file has a same-named 512x512 PNG when PNG output is enabled.",
+        "Optional playfield-only output adds -playfield before the PNG extension.",
         "",
     ])
     result = "\n".join(lines)
@@ -914,11 +955,18 @@ def main() -> None:
     parser.add_argument("--game", choices=GAME_FORMATS, default="gauntlet")
     parser.add_argument("--rom-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--playfield-output",
+        type=Path,
+        help="optional directory for *-playfield.png files without Motion Objects",
+    )
     parser.add_argument("--tiles", type=Path, help="unpacked 8192 x 64-byte tile binary")
     parser.add_argument("--palette-dump", type=Path, help="0x800-byte Atari palette RAM dump")
     args = parser.parse_args()
     if bool(args.tiles) != bool(args.palette_dump):
         parser.error("--tiles and --palette-dump must be supplied together")
+    if args.playfield_output and not args.tiles:
+        parser.error("--playfield-output requires --tiles and --palette-dump")
 
     game_format = GAME_FORMATS[args.game]
     protected_rom = interleave(
@@ -931,11 +979,30 @@ def main() -> None:
     expected = {output_name(level.record_id, args.game) for level in levels} | {"index.txt"}
     if args.tiles:
         expected |= {png_name(level.record_id, args.game) for level in levels}
+    shared_output = bool(
+        args.playfield_output and args.playfield_output.resolve() == args.output.resolve()
+    )
+    expected_playfield = set()
+    if args.playfield_output:
+        expected_playfield = {
+            playfield_png_name(level.record_id, args.game) for level in levels
+        }
+        if shared_output:
+            expected |= expected_playfield
     for stale in args.output.iterdir():
         if stale.suffix not in (".txt", ".png"):
             continue
         if stale.name not in expected:
             stale.unlink()
+    if args.playfield_output:
+        args.playfield_output.mkdir(parents=True, exist_ok=True)
+        for stale in args.playfield_output.iterdir():
+            if (
+                stale.suffix == ".png"
+                and stale.name not in expected_playfield
+                and (not shared_output or stale.name.endswith("-playfield.png"))
+            ):
+                stale.unlink()
     for level in levels:
         (args.output / output_name(level.record_id, args.game)).write_text(
             render(level, args.game), encoding="ascii", newline="\n"
@@ -955,11 +1022,20 @@ def main() -> None:
                 level, program, tiles, palette_dump,
                 args.output / png_name(level.record_id, args.game), args.game
             )
+            if args.playfield_output:
+                render_png(
+                    level, program, tiles, palette_dump,
+                    args.playfield_output / playfield_png_name(level.record_id, args.game),
+                    args.game,
+                    include_motion_objects=False,
+                )
     (args.output / "index.txt").write_text(render_index(levels, args.game), encoding="ascii", newline="\n")
+    demo_label = "demo map" if len(game_format.demo_ids) == 1 else "demo maps"
     print(
-        f"Extracted {len(game_format.normal_ids)} normal levels, {len(game_format.demo_ids)} demo maps and "
+        f"Extracted {len(game_format.normal_ids)} normal levels, {len(game_format.demo_ids)} {demo_label}, "
         f"{len(game_format.treasure_ids)} treasure rooms and {len(game_format.secret_ids)} secret rooms as ASCII"
         f"{' and PNG' if args.tiles else ''} to {args.output}"
+        f"{' plus playfield-only PNGs to ' + str(args.playfield_output) if args.playfield_output else ''}"
     )
 
 

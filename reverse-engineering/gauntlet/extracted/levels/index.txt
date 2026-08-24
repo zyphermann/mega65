@@ -4,6 +4,7 @@ TOTAL: 127
 NORMAL: 114
 DEMO_ATTRACT: 2
 TREASURE_ROOMS: 11
+SECRET_ROOMS: 0
 
 FILE                         ID   BANK  POINTER   PACKED  HEADER_00_0D
 level-001.txt                  0     0  0382DE      80  65647A000000000000000B5A5B49
@@ -139,3 +140,4 @@ ROM IDs 150..151 are demo/attract maps.
 ROM IDs 152..162 are the eleven treasure rooms.
 ROM IDs 114..149 contain no level pointers in this revision.
 Each listed TXT file has a same-named 512x512 PNG when PNG output is enabled.
+Optional playfield-only output adds -playfield before the PNG extension.

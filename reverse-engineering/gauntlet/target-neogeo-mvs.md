@@ -248,6 +248,13 @@ Für Sonderpen 1 ist wahrscheinlich eine vorberechnete alternative
 Playfield-Palette oder ein gezieltes Overlay nötig; Neo Geo bietet keine
 direkte Entsprechung zu dieser Atari-Mischlogik.
 
+Der Zwischenexport zeigt Pen 1 im Diagnoseatlas als Schwarz mit Alpha 128.
+Eine parallele Binärmaske hält diese Pixel unabhängig von der Vorschau fest.
+Beim endgültigen Level-Build wird die Alpha-Darstellung nicht übernommen,
+sondern aus der lokalen Hintergrundfarbe eine möglichst passende deckende
+Neo-Geo-Schattenfarbe gewählt. Pen 0 bleibt durchgehend die echte
+Transparenz.
+
 ### Generatoren und Wandüberdeckung auf dem MVS
 
 Die ursprüngliche Ebenenwirkung darf beim Zusammensetzen zu 16-x-16-C-Tiles

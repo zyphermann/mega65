@@ -1,5 +1,6 @@
 PYTHON ?= python3
 MAME ?= mame
+MOTION_TRACE_SECONDS ?= 300
 
 ROOT := $(abspath ../..)
 ROM_DIR := $(ROOT)/assets/gauntlet/romset
@@ -7,8 +8,14 @@ TOOLS_DIR := $(ROOT)/tools
 OUTPUT_DIR := $(CURDIR)/extracted
 EXTRACTOR := $(TOOLS_DIR)/extract_gauntlet_graphics.py
 LEVEL_EXTRACTOR := $(TOOLS_DIR)/extract_gauntlet_levels.py
+LEVEL_TILESET_EXTRACTOR := $(TOOLS_DIR)/extract_gauntlet_level_tilesets.py
+MO_TRACER := $(TOOLS_DIR)/trace_gauntlet_motion_objects.lua
+MO_CATALOG_BUILDER := $(TOOLS_DIR)/build_gauntlet_motion_catalog.py
 PALETTE_DUMPER := $(TOOLS_DIR)/dump_gauntlet_palette.lua
 LEVEL_DIR := $(OUTPUT_DIR)/levels
+LEVEL_TILESET_DIR := $(OUTPUT_DIR)/level-tilesets
+MO_DIR := $(OUTPUT_DIR)/motion-objects
+MO_TRACE := $(MO_DIR)/trace.csv
 
 CHAR_ROM := $(ROM_DIR)/136037-104.6p
 TILE_ROMS := \
@@ -48,7 +55,7 @@ GRAPHICS_OUTPUTS := $(CHAR_BIN) $(TILE_BIN) $(CHAR_PNG) $(TILE_PNG)
 # initially absent.
 .NOTPARALLEL:
 
-.PHONY: all graphics tiles png palette palette-dump levels verify clean help
+.PHONY: all graphics tiles png palette palette-dump levels level-tilesets motion-trace motion-catalog verify clean help
 
 all: graphics palette levels verify
 
@@ -65,7 +72,38 @@ palette-dump: $(PALETTE_BIN) $(PALETTE_CSV)
 levels: graphics palette $(LEVEL_ROMS) $(PROGRAM_ROMS) $(LEVEL_EXTRACTOR)
 	@mkdir -p $(LEVEL_DIR)
 	$(PYTHON) $(LEVEL_EXTRACTOR) --rom-dir $(ROM_DIR) --output $(LEVEL_DIR) \
+		--playfield-output $(LEVEL_DIR) \
 		--tiles $(TILE_BIN) --palette-dump $(PALETTE_BIN)
+
+level-tilesets: levels $(LEVEL_TILESET_EXTRACTOR)
+	@mkdir -p $(LEVEL_TILESET_DIR)
+	$(PYTHON) $(LEVEL_TILESET_EXTRACTOR) --levels $(LEVEL_DIR) \
+		--output $(LEVEL_TILESET_DIR)
+
+motion-trace: $(MO_TRACE)
+
+$(MO_TRACE): $(ALL_ROMS) $(MO_TRACER)
+	@command -v $(MAME) >/dev/null || { echo "mame fehlt"; exit 1; }
+	@set -eu; \
+		tmp_dir=$$(mktemp -d); \
+		trap 'rm -rf "$$tmp_dir"' EXIT HUP INT TERM; \
+		mkdir -p "$$tmp_dir/roms/gauntlet" "$$tmp_dir/cfg" \
+			"$$tmp_dir/nvram" "$$tmp_dir/snap" "$$tmp_dir/home" $(MO_DIR); \
+		cp $(ALL_ROMS) "$$tmp_dir/roms/gauntlet/"; \
+		dd if=/dev/zero of="$$tmp_dir/roms/gauntlet/136037-104.6p" \
+			bs=8192 seek=1 count=1 conv=notrunc >/dev/null 2>&1; \
+		GAUNTLET_MO_TRACE_FILE=$(MO_TRACE) GAUNTLET_MO_TRACE_START=900 \
+			GAUNTLET_AUTOSTART=1 SDL_VIDEODRIVER=dummy $(MAME) gauntlet \
+			-rompath "$$tmp_dir/roms" -cfg_directory "$$tmp_dir/cfg" \
+			-nvram_directory "$$tmp_dir/nvram" -snapshot_directory "$$tmp_dir/snap" \
+			-homepath "$$tmp_dir/home" -skip_gameinfo -video none -sound none \
+			-nothrottle -autoboot_script $(MO_TRACER) \
+			-seconds_to_run $(MOTION_TRACE_SECONDS)
+
+motion-catalog: $(MO_TRACE) graphics palette $(MO_CATALOG_BUILDER)
+	$(PYTHON) $(MO_CATALOG_BUILDER) --game gauntlet --trace $(MO_TRACE) \
+		--rom-dir $(ROM_DIR) --tiles $(TILE_BIN) \
+		--palette-dump $(PALETTE_BIN) --output $(MO_DIR)
 
 $(GRAPHICS_OUTPUTS): $(CHAR_ROM) $(TILE_ROMS) $(EXTRACTOR)
 	@mkdir -p $(OUTPUT_DIR)
@@ -98,7 +136,7 @@ $(PALETTE_CSV): $(PALETTE_BIN) $(EXTRACTOR)
 	$(PYTHON) $(EXTRACTOR) --output $(OUTPUT_DIR) \
 		--palette-dump $(PALETTE_BIN) --palette-only
 
-verify: graphics palette levels
+verify: graphics palette levels level-tilesets motion-catalog
 	@test "$$(wc -c < $(CHAR_BIN) | tr -d ' ')" -eq 32768
 	@test "$$(wc -c < $(TILE_BIN) | tr -d ' ')" -eq 524288
 	@test "$$(wc -c < $(PALETTE_BIN) | tr -d ' ')" -eq 2048
@@ -106,15 +144,26 @@ verify: graphics palette levels
 	@test "$$(find $(LEVEL_DIR) -type f -name 'level-*.txt' | wc -l | tr -d ' ')" -eq 114
 	@test "$$(find $(LEVEL_DIR) -type f -name 'demo-*.txt' | wc -l | tr -d ' ')" -eq 2
 	@test "$$(find $(LEVEL_DIR) -type f -name 'treasure-room-*.txt' | wc -l | tr -d ' ')" -eq 11
-	@test "$$(find $(LEVEL_DIR) -type f -name 'level-*.png' | wc -l | tr -d ' ')" -eq 114
-	@test "$$(find $(LEVEL_DIR) -type f -name 'demo-*.png' | wc -l | tr -d ' ')" -eq 2
-	@test "$$(find $(LEVEL_DIR) -type f -name 'treasure-room-*.png' | wc -l | tr -d ' ')" -eq 11
+	@test "$$(find $(LEVEL_DIR) -type f -name 'level-*.png' ! -name '*-playfield.png' | wc -l | tr -d ' ')" -eq 114
+	@test "$$(find $(LEVEL_DIR) -type f -name 'demo-*.png' ! -name '*-playfield.png' | wc -l | tr -d ' ')" -eq 2
+	@test "$$(find $(LEVEL_DIR) -type f -name 'treasure-room-*.png' ! -name '*-playfield.png' | wc -l | tr -d ' ')" -eq 11
+	@test "$$(find $(LEVEL_DIR) -type f -name 'level-*-playfield.png' | wc -l | tr -d ' ')" -eq 114
+	@test "$$(find $(LEVEL_DIR) -type f -name 'demo-*-playfield.png' | wc -l | tr -d ' ')" -eq 2
+	@test "$$(find $(LEVEL_DIR) -type f -name 'treasure-room-*-playfield.png' | wc -l | tr -d ' ')" -eq 11
+	@test "$$(find $(LEVEL_TILESET_DIR) -type f -name '*-playfield-tiles.png' | wc -l | tr -d ' ')" -eq 127
+	@test "$$(find $(LEVEL_TILESET_DIR) -type f -name '*-playfield-map.txt' | wc -l | tr -d ' ')" -eq 127
+	@test "$$(find $(LEVEL_TILESET_DIR) -type f -name '*-motion-object-layer.png' | wc -l | tr -d ' ')" -eq 127
+	@test "$$(find $(LEVEL_TILESET_DIR) -type f -name '*-motion-object-tiles.png' | wc -l | tr -d ' ')" -eq 127
+	@test "$$(find $(LEVEL_TILESET_DIR) -type f -name '*-motion-object-map.txt' | wc -l | tr -d ' ')" -eq 127
+	@test -s $(LEVEL_TILESET_DIR)/index.csv
+	@test -s $(MO_TRACE) -a -s $(MO_DIR)/frames.png -a -s $(MO_DIR)/frames.csv
+	@test -s $(MO_DIR)/pen-1-mask.png
 	@test -s $(LEVEL_DIR)/index.txt
-	@echo "Gauntlet assets geprüft: 512 Chars, 8192 Playfield/MO-Tiles, 1024 Farben, 127 ASCII- und PNG-Karten."
+	@echo "Gauntlet assets geprüft: 127 ASCII-Karten sowie 127 vollständige und 127 Playfield-only-PNGs."
 
 clean:
 	$(RM) $(GRAPHICS_OUTPUTS) $(PALETTE_BIN) $(PALETTE_CSV)
-	$(RM) -r $(LEVEL_DIR)
+	$(RM) -r $(LEVEL_DIR) $(LEVEL_TILESET_DIR) $(MO_DIR)
 
 help:
 	@echo "make                Grafik, Palette, ASCII-Level und Prüfung"
@@ -123,6 +172,9 @@ help:
 	@echo "make png            PNG-Übersichten"
 	@echo "make palette        Palette-CSV; erzeugt bei Bedarf einen MAME-Dump"
 	@echo "make palette-dump   Laufzeitpalette mit MAME neu aufnehmen"
-	@echo "make levels         114 Level, 2 Demo-Karten und 11 Treasure Rooms als ASCII und PNG"
+	@echo "make levels         Karten als ASCII, vollständige PNGs und Playfield-only-PNGs"
+	@echo "make level-tilesets eindeutige 16x16-Playfield-/MO-Tiles und 32x32-Indexmaps"
+	@echo "make motion-trace   echte MO-Frames und Paletten über MAME protokollieren"
+	@echo "make motion-catalog beobachtete Frames plus ROM-Energiestufen als 16x16-Atlas"
 	@echo "make verify         Größen und Vollständigkeit prüfen"
 	@echo "make clean          alle generierten Gauntlet-Assets entfernen"

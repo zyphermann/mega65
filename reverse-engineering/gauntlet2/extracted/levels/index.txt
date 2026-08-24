@@ -1,8 +1,8 @@
 ATARI GAUNTLET II LEVEL INDEX
 
 TOTAL: 117
-NORMAL: 102
-DEMO_ATTRACT: 2
+NORMAL: 103
+DEMO_ATTRACT: 1
 TREASURE_ROOMS: 11
 SECRET_ROOMS: 2
 
@@ -109,8 +109,8 @@ level-099.txt                 94     3  0385A6     233  100000540071539D470E5E
 level-100.txt                 96     3  038786     273  0D8000040521CE07090E08
 level-101.txt                 98     3  0389F4     278  0E00000020047C069C0EAE
 level-102.txt                100     3  038C3F     234  058080000000000D470E35
-demo-001.txt                 102     3  038DF2     110  0022200000126D06590E6E
-demo-002.txt                 103     3  038E6C      89  000000000021D22E757F41
+level-103.txt                102     3  038DF2     110  0022200000126D06590E6E
+demo-001.txt                 103     3  038E6C      89  000000000021D22E757F41
 treasure-room-01.txt         104     3  038ED1     205  0E0000882061956E904849
 treasure-room-02.txt         105     3  038FAA     203  0F0000880061956E470809
 treasure-room-03.txt         106     3  039081     206  060000400061956E90444F
@@ -126,9 +126,11 @@ secret-room-01.txt           115     3  039D29     275  000000000031DA434D0E41
 secret-room-02.txt           116     3  039E48     412  000000080031DA474E0548
 
 Normal filenames follow the visible two-step route: records 0..5 are levels 1..6;
-records 7,9,..101 are levels 7..54; records 6,8,..100 are levels 55..102.
-ROM records 102..103 are demo/attract maps, 104..114 are eleven treasure rooms,
+records 7,9,..101 are levels 7..54; records 6,8,..100 are levels 55..102;
+the special final loader supplies record 102 as level 103.
+ROM record 103 is the demo/attract map, 104..114 are eleven treasure rooms,
 and records 115..116 are the two secret rooms selected by the dedicated code path.
-After visible level 102 the normal room ring wraps; a displayed level number is not
-a permanent one-to-one property of a ROM record for every operator route or later loop.
+The core room ring wraps after level 102; the special loader provides level 103.
+A displayed number is not a permanent record property on other routes or later loops.
 Each listed TXT file has a same-named 512x512 PNG when PNG output is enabled.
+Optional playfield-only output adds -playfield before the PNG extension.

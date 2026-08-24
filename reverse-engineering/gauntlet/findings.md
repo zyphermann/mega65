@@ -72,7 +72,8 @@ Python-Extraktor benötigt keine externen Pakete. Er erzeugt:
 | `extracted/playfield-motion-objects.png` | Übersicht über alle 8192 4-bpp-Tiles |
 | `extracted/playfield-motion-objects.bin` | 8192 Tiles, je 64 ungepackte Pen-Bytes |
 | `extracted/levels/level-001.txt` bis `level-114.txt` | normale Level als 32-x-32-ASCII-Karten |
-| `extracted/levels/level-001.png` bis `level-114.png` | normale Level als 512-x-512-Tile-Renderings |
+| `extracted/levels/level-001.png` bis `level-114.png` | vollständige 512-x-512-Renderings aus Playfield und statischen Motion Objects |
+| `extracted/levels/*-playfield.png` | 512-x-512-Renderings ausschließlich der Playfield-Tiles |
 | `extracted/levels/demo-150.txt`, `demo-151.txt` | Karten des Demo-/Attract-Ablaufs |
 | `extracted/levels/treasure-room-01.txt` bis `treasure-room-11.txt` | alle Treasure Rooms |
 | `extracted/levels/index.txt` | Bank, ROM-Zeiger, Header und Packgröße aller 127 Karten |
@@ -85,13 +86,98 @@ dem Pen-Index und nicht bereits einer Spielfarbe.
 `make levels` benötigt nur Python und die beiden Slapstic-ROMs `205.10a` und
 `206.10b` für die Kartendaten; für die PNGs kommen die bereits extrahierten
 Grafiktiles, die Laufzeitpalette und die Tabellen aus `1307/1308` hinzu. Es
-schreibt 114 normale Karten, zwei Demo-Karten und elf Treasure Rooms, also je
-127 ASCII- und PNG-Dateien. Jedes Zeichen der Textdateien liegt im
+schreibt 114 normale Karten, zwei Demo-Karten und elf Treasure Rooms, also 127
+ASCII-Dateien und je 127 PNGs in beiden Darstellungsarten. Jedes Zeichen der Textdateien liegt im
 7-Bit-ASCII-Bereich.
 Eine logische Zelle wird mit zwei Zeichen dargestellt: `..` ist freier Boden,
 `##` ist Wand, alle noch nicht semantisch benannten Typen erscheinen
 verlustfrei als zweistellige Hexzahl. Dadurch bleiben die Karten auch ohne
 Spezialfont eindeutig und gut lesbar.
+
+Der normale PNG-Satz unter `extracted/levels/` bleibt die vollständige
+statische Rekonstruktion. Der zweite Satz liegt im selben Ordner und trägt
+`-playfield` vor der Dateiendung (zum Beispiel `level-001-playfield.png`). Er
+endet exakt nach dem ersten Hardware-Layer: Boden, Wände, Wandanschlüsse und
+Playfield-Schrift wie `EXIT` bleiben erhalten; Tore, Generatoren, Gegner,
+Knochen, Schlüssel, Nahrung und alle weiteren Motion Objects fehlen. Beide
+Sätze verwenden identische Namensstämme, Koordinaten, Themen und Paletten. Jede Datei
+ist damit ein Raster aus 32 x 32 bereits zusammengesetzten 16-x-16-Metatiles.
+Der Playfield-only-Satz ist die saubere Quelle für die spätere Deduplizierung
+zu Neo-Geo-16-x-16-C-Tiles; bewegliche oder überhängende Elemente werden beim
+Port weiterhin getrennt als Sprites behandelt.
+
+`make level-tilesets` zerlegt jedes dieser Bildpaare zusätzlich levelweise in
+16-x-16-Blöcke. Unter `extracted/level-tilesets/` entstehen je Karte:
+
+| Suffix | Inhalt |
+|---|---|
+| `-playfield-tiles.png` | Atlas aller in dieser Karte einzigartigen, farbigen 16-x-16-Playfield-Blöcke |
+| `-playfield-map.txt` | 32-x-32-Indexmap in diesen Atlas |
+| `-motion-object-layer.png` | transparente, 512-x-512 große MO-Ebene |
+| `-motion-object-tiles.png` | Atlas zusammenhängender MO-Gruppen auf einem reinen 16-x-16-Raster; Tile 0 ist transparent |
+| `-motion-object-map.txt` | 32-x-32-Indexmap in den MO-Atlas |
+
+Die MO-Ebene ist die sichtbare Differenz zwischen vollständigem Rendering und
+Playfield. Das ist absichtlich levelabhängig: Atari-MO-Pen 1 besitzt keine
+eigene Objektfarbe, sondern schaltet ein Farbbit des darunterliegenden
+Playfields um. Die extrahierte Ebene enthält deshalb bereits das farblich
+korrekte Ergebnis für genau diesen Levelhintergrund. Ein erneutes Überlagern
+der transparenten MO-Ebene über das Playfield ergibt pixelgenau das bisherige
+Vollbild. Zusammenhängende belegte Zellen bleiben im MO-Atlas in ihrer
+zweidimensionalen Lage benachbart. Ein 24-x-24-Atari-Objekt aus 8-x-8-
+Quellgrafiken wird dadurch ausschließlich als mehrere gepolsterte 16-x-16-
+Tiles abgelegt; der Neo-Geo-Port benötigt keine 8-x-8-Tiles. Wiederkehrende
+Blöcke werden zwischen Gruppen vorerst dupliziert, damit jede spätere
+Sprite-Chain geschlossen bleibt. `index.csv` nennt zusätzlich zur Zahl der
+eindeutigen Motive die belegten Zellen, zusammenhängenden Gruppen und die
+Größe des gepackten Atlas. Die Deduplizierung erfolgt bewusst erst später.
+
+Dieser per-Level-Satz umfasst die statischen Motion Objects, welche die
+rekonstruierte Levelinitialisierung erzeugt. Animations-, Projektil- und
+Gegnerframes, die erst während des Spiels in MO-RAM geschrieben werden, liegen
+stattdessen im nachfolgend beschriebenen Laufzeit-/ROM-Katalog.
+
+### Animations- und Energiestufenkatalog
+
+Der Laufzeit-Trace ist nun als `make motion-trace` reproduzierbar. MAME läuft
+standardmäßig 300 emulierte Sekunden ungedrosselt und protokolliert über die
+SLIP-Listen jeden erstmals sichtbaren MO-Zustand nach
+`extracted/motion-objects/trace.csv`. Ein Zustand besteht aus Grafikcode,
+Breite, Höhe, X-Flip, Palettengruppe und allen 16 zu diesem Zeitpunkt aktiven
+IRGB4444-Palettenwörtern. `MOTION_TRACE_SECONDS=...` kann den Lauf verlängern.
+
+`make motion-catalog` verbindet den Trace mit den im Programm-ROM
+identifizierten Animationstabellen und erzeugt:
+
+| Datei | Inhalt |
+|---|---|
+| `motion-objects/frames.png` | alle katalogisierten Frames und Farbstufen, zu vollständigen 16-x-16-Zellen gepolstert |
+| `motion-objects/frames.csv` | Grafikcode, Quelle, Atari-Größe, Palette und Position/Größe im Atlas |
+| `motion-objects/pen-1-mask.png` | separate Maske für den Atari-Playfield-Stain-Pen 1 |
+| `motion-objects/trace.csv` | unveränderte, tatsächlich von MAME beobachtete MO-Deskriptoren |
+
+Der aktuelle Gauntlet-Katalog enthält 628 Kombinationen. Die fünf
+Generatorfamilien werden dabei unabhängig von der zufälligen Trace-Abdeckung
+stets mit allen drei in den ROM-Tabellen belegten Energiestufen erzeugt:
+`$0800` und `$09E1` in Palettengruppen 2/3/4, `$183F` in 6/7/8 sowie `$1B57`
+und `$13A2` in 9/10/11. Damit sind beispielsweise weißer, hellgrauer und
+dunkelgrauer Geist echte Palettenzustände desselben Frames und keine
+nachträglichen Helligkeitsfilter. Zusätzlich werden die vollständigen
+identifizierten Animationscode-Sätze mit allen zugehörigen Farbgruppen
+gekreuzt.
+
+Im sichtbaren Frameatlas erscheint Atari-Pen 1 vorläufig als Schwarz mit
+Alpha 128, also ungefähr 50 Prozent Deckkraft. Pen 0 bleibt dagegen wirklich
+transparent. Das ist nur eine gut lesbare PNG-Vorschau und keine direkt
+verwendbare Neo-Geo-Funktion: Die parallele `pen-1-mask.png` erlaubt später,
+für jeden Level und den jeweils darunterliegenden Hintergrund eine passende
+deckende Palettenfarbe zu berechnen.
+
+Die per-Level-MO-Atlanten bleiben Platzierungsdaten der statischen Karte. Der
+globale Framekatalog ist dagegen die Quelle für Animation und Energiezustand;
+ein MVS-Level referenziert daraus die benötigten Objektfamilien. Diese Trennung
+verhindert, dass derselbe Geh-/Angriffsframe für jede Weltposition erneut
+gespeichert wird, ohne eine spätere Deduplizierung vorwegzunehmen.
 
 Jedes PNG ist 512 x 512 Pixel groß: 32 x 32 logische Zellen werden mit den
 originalen 2-x-2-Atari-Tilekombinationen zu einer vollständigen 64-x-64-Karte
